@@ -6,7 +6,14 @@ import html
 from pathlib import Path
 
 from shadow_scout import __version__
-from shadow_scout.export.common import fmt_int, summary_counts, yes_no
+from shadow_scout.export.common import (
+    DEPTH_LABELS,
+    fmt_int,
+    holder_label,
+    location_title,
+    summary_counts,
+    yes_no,
+)
 from shadow_scout.models import VERDICT_COLORS, VERDICT_LABELS_RU, RiskReport, SearchResult
 from shadow_scout.providers import load_countries
 
@@ -41,6 +48,10 @@ ul{margin:6px 0 0 18px;padding:0}li{margin:4px 0}
 footer{color:var(--muted);font-size:12.5px;margin-top:30px}
 input.filter{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:8px;width:320px;margin:0 0 12px}
 a{color:var(--accent)}
+.loc{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:10px 0;padding:0 14px}
+.loc>summary{padding:12px 0}.loc table{border:0;background:transparent;margin-bottom:12px}
+.loc .note{color:var(--muted);font-weight:400;font-size:13px}
+.hint{color:var(--moderate)}.unk{color:var(--muted)}
 @media print{body{background:#fff;color:#111}.card,table,details{background:#fff;border-color:#ccc}th{background:#eee;color:#333}}
 """
 
@@ -74,13 +85,72 @@ def _score_cell(report: RiskReport) -> str:
     )
 
 
+def _flag(value: bool | None, hint: bool) -> str:
+    """✓ подтверждено · ~ определено автоматически · ? неизвестно · — нет."""
+    if value is None:
+        return '<span class="unk" title="неизвестно">?</span>'
+    if not value:
+        return '<span class="unk">—</span>'
+    return '<span class="hint" title="определено автоматически, проверьте на сайте">~</span>' if hint else '<span class="ok">✓</span>'
+
+
+def _picks_section(result: SearchResult) -> str:
+    """Главный раздел отчёта: лучшие провайдеры по каждой локации."""
+    if not result.picks:
+        return ""
+    blocks = []
+    for n, pick in enumerate(result.picks):
+        rows = []
+        for rank, pid in enumerate(pick.provider_ids, start=1):
+            r = result.report_by_id(pid)
+            if r is None:
+                continue
+            p = r.provider
+            cities = ", ".join(sorted({loc.city for loc in p.locations if loc.country == pick.country and loc.city})) or "—"
+            auto = ' <small class="unk">[авто]</small>' if p.source == "catalog" else ""
+            rows.append(
+                "<tr>"
+                f"<td>{rank}</td>"
+                f"<td><a href='#p-{_e(p.id)}'><b>{_e(p.name)}</b></a>{auto}"
+                + (f"<br><a href='{_e(p.website)}' target='_blank' rel='noopener'><small>{_e(p.website_domain())}</small></a>" if p.website else "")
+                + "</td>"
+                f"<td>{_e(cities)}</td>"
+                f"<td>{_e(', '.join(f'AS{a.asn}' for a in r.asns) or '—')}</td>"
+                f"<td>{fmt_int(r.total_ipv4) if r.total_ipv4 else '—'}</td>"
+                f"<td>{(f'{r.blocked_share*100:.2f}%' if r.total_ipv4 else '—')}</td>"
+                f"<td>{_flag(p.trial, p.hints_only)}</td><td>{_flag(p.hourly, p.hints_only)}</td>"
+                f"<td>{_e(f'{p.min_price_eur:g}' if p.min_price_eur is not None else '—')}</td>"
+                f"<td>{_score_cell(r)}</td><td>{_badge(r.verdict)}</td>"
+                f"<td title='{_e(DEPTH_LABELS.get(r.depth, r.depth))} проверка'>{'●' if r.depth == 'full' else '◐'}</td>"
+                "</tr>"
+            )
+        if not rows:
+            reason = "в базе нет подходящих провайдеров" if not pick.candidates else "рекомендовать некого: все проанализированные критичны или без данных"
+            rows.append(f"<tr><td colspan='12' class='warn'>{reason}</td></tr>")
+        blocks.append(
+            f"<details class='loc'{' open' if n < 6 else ''} data-name='{_e(location_title(pick.country, pick.city).lower())}'>"
+            f"<summary>{_e(location_title(pick.country, pick.city))} "
+            f"<span class='note'>в базе подошло {pick.candidates}, проанализировано {pick.analyzed}</span></summary>"
+            "<table><thead><tr><th>#</th><th>Провайдер</th><th>Город</th><th>ASN</th><th>IPv4</th><th>В списках</th>"
+            "<th>Trial</th><th>Почас.</th><th>от €</th><th>Выживаемость</th><th>Вердикт</th><th>Пров.</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></details>"
+        )
+    return (
+        "<h2>Лучшие по локациям</h2>"
+        "<div class='sub'>● полная проверка (cheburcheck и др.) · ◐ быстрая (локальные списки) · "
+        "Trial/почасовая: ✓ подтверждено, ~ определено автоматически, ? неизвестно. "
+        "Один провайдер показан не более чем в нескольких локациях, пока есть альтернативы.</div>"
+        + "".join(blocks)
+    )
+
+
 def _provider_card(rank: int, report: RiskReport, open_: bool = False) -> str:
     countries = load_countries()
     p = report.provider
     locs = report.matched_locations or p.locations
     loc_text = ", ".join(sorted({countries.name(loc.country) + (f" / {loc.city}" if loc.city else "") for loc in locs})) or "—"
     asn_lines = "".join(
-        f"<li><b>AS{a.asn}</b> — {_e(a.holder or '?')}"
+        f"<li><b>AS{a.asn}</b> — {_e(holder_label(report, a.holder))}"
         + (' <span class="warn">(holder не совпадает с названием)</span>' if a.holder_matches_provider is False else "")
         + f"<br><small>IPv4: {fmt_int(a.ipv4_count)} · префиксов: {len(a.prefixes_v4)} · в списках: {a.blocked_share:.2%}"
         + (f" · PeeringDB: {_e(', '.join(a.peeringdb.get('info_types') or []) or '—')}, трафик {_e(a.peeringdb.get('info_traffic') or '—')}" if a.peeringdb else "")
@@ -100,12 +170,12 @@ def _provider_card(rank: int, report: RiskReport, open_: bool = False) -> str:
     ) + (
         f"<li>Локации: {_e(loc_text)}</li>"
         f"<li>Тип IP (база): {_e(p.ip_type.upper())} · размер: {_e(p.size)} · популярность в RU: {p.popularity_ru}/5</li>"
-        f"<li>Trial: {yes_no(p.trial)}{(' — ' + _e(p.trial_note)) if p.trial_note else ''} · почасовая: {yes_no(p.hourly)} · от {_e(f'{p.min_price_eur:g} €' if p.min_price_eur is not None else '—')}</li>"
+        f"<li>Trial: {yes_no(p.trial, p.hints_only)}{(' — ' + _e(p.trial_note)) if p.trial_note else ''} · почасовая: {yes_no(p.hourly, p.hints_only)} · от {_e(f'{p.min_price_eur:g} €' if p.min_price_eur is not None else '—')}</li>"
         f"<li>Оплата: {_e(', '.join(p.payment) or '—')}</li>"
         + (f"<li>Примечание: {_e(p.notes)}</li>" if p.notes else "")
     )
     return (
-        f'<details data-name="{_e(p.name.lower())}"{" open" if open_ else ""}><summary>#{rank} {_e(p.name)} {_badge(report.verdict)}'
+        f'<details id="p-{_e(p.id)}" data-name="{_e(p.name.lower())}"{" open" if open_ else ""}><summary>#{rank} {_e(p.name)} {_badge(report.verdict)}'
         f'<span class="meta">выживаемость {report.survivability:.0f}/100 · уверенность {report.confidence*100:.0f}% · {_e(loc_text)}</span></summary>'
         f'<div class="grid"><div><h4>Провайдер</h4><ul>{facts}</ul><h4>Сети</h4><ul>{asn_lines}</ul>'
         + (f"<h4>Флаги</h4><ul>{flags}</ul>" if flags else "")
@@ -132,7 +202,7 @@ def write_html(result: SearchResult, path: Path) -> None:
             f"<td data-v='{r.total_ipv4}'>{fmt_int(r.total_ipv4) if r.total_ipv4 else '—'}</td>"
             f"<td data-v='{r.blocked_share*100:.3f}'>{(f'{r.blocked_share*100:.2f}%' if r.total_ipv4 else '—')}</td>"
             f"<td>{_e(p.ip_type.upper())}</td>"
-            f"<td>{yes_no(p.trial)}</td><td>{yes_no(p.hourly)}</td>"
+            f"<td>{_flag(p.trial, p.hints_only)}</td><td>{_flag(p.hourly, p.hints_only)}</td>"
             f"<td data-v='{p.min_price_eur if p.min_price_eur is not None else 9999}'>{_e(f'{p.min_price_eur:g}' if p.min_price_eur is not None else '—')}</td>"
             f"<td data-v='{r.survivability}'>{_score_cell(r)}</td>"
             f"<td data-v='{r.risk_score}'>{_badge(r.verdict)}</td>"
@@ -146,7 +216,7 @@ def write_html(result: SearchResult, path: Path) -> None:
     doc = f"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_e(result.title)}</title><style>{CSS}</style></head><body><div class="wrap">
 <h1><span>Shadow Scout</span> · {_e(result.title)}</h1>
-<div class="sub">Создан {result.generated_at.strftime('%d.%m.%Y %H:%M UTC')} · запрос: {_e(result.query.describe())} · {len(reports)} провайдеров · {result.duration_seconds:.0f} с</div>
+<div class="sub">Создан {result.generated_at.strftime('%d.%m.%Y %H:%M UTC')} · запрос: {_e(result.query.describe())} · проанализировано {len(reports)} из {result.candidates_total or len(reports)} подходящих · {result.duration_seconds:.0f} с</div>
 <div class="cards">
 <div class="card"><b style="color:var(--low)">{counts['low']}</b><small>низкий риск</small></div>
 <div class="card"><b style="color:var(--moderate)">{counts['moderate']}</b><small>умеренный</small></div>
@@ -154,6 +224,8 @@ def write_html(result: SearchResult, path: Path) -> None:
 <div class="card"><b style="color:var(--critical)">{counts['critical']}</b><small>критический</small></div>
 <div class="card"><b style="color:var(--unknown)">{counts['unknown']}</b><small>нет данных</small></div>
 </div>
+{_picks_section(result)}
+<h2>Все проанализированные провайдеры</h2>
 <input id="filter" class="filter" placeholder="Фильтр по названию, стране, ASN…">
 <table><thead><tr>
 <th data-k="num">#</th><th data-k="str">Провайдер</th><th data-k="str">Страны</th><th data-k="str">ASN</th><th data-k="num">IPv4</th>

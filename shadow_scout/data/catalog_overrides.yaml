@@ -1,0 +1,65 @@
+# Ручные правки автоматического каталога (providers_auto.json). Применяются при каждом запуске «shadow-scout harvest»,
+# поэтому исправления не пропадают при пересборке каталога.
+#
+# deny_asns:  сети, которые никогда не попадут в каталог (не хостинг, брокер, CDN, ложное срабатывание правил)
+# force_asns: сети, которые попадут в каталог, даже если правила или проверка сайта их отвергли
+# ru_asns:    помечаются как «связи с РФ» (по умолчанию из поиска исключаются)
+# names:      ASN → отображаемое название
+# locations:  ASN → список локаций вместо найденных по PeeringDB
+# popularity: ASN → 1..5, насколько хостер известен русскоязычному VPN-сообществу (по умолчанию — по размеру сети)
+
+deny_asns:
+  # операторы связи, ИТ-интеграторы и консалтинг — VPS не продают
+  - 25148   # Orange Business Services (NO)
+  - 8523    # Orange Business Services (NO)
+  - 20514   # Axians (SE)
+  - 202812  # Iver Accelerate (SE)
+  - 62313   # Proact (SE)
+  - 21083   # Proact (SE)
+  - 34482   # Nuuday Cloud — датский оператор связи (DK)
+  - 197317  # Nuuday Cloud (DK)
+  - 50833   # Fiber Telecom Czechia — интернет-провайдер (CZ)
+  - 202718  # sigmavista it consulting (AT)
+  - 205202  # Cloudflight — ИТ-услуги (AT)
+  - 209050  # Digimagical — агентство (AT)
+  - 204059  # Neutrinet — некоммерческий интернет-провайдер (BE)
+  - 210017  # Connect4Hasselt — городская сеть (BE)
+  # не про аренду серверов: SaaS, облачные хранилища, медиа, инфраструктура DNS/бэкапов, университеты, страховщики
+  - 199386  # Fluxer — приложение (SE)
+  - 29331   # Forsikringens Datacenter — ДЦ страховщика (DK)
+  - 198455  # i2 / DTU — университет (DK)
+  - 9120    # Keepit — SaaS-бэкапы (DK)
+  - 33412   # Keepit (DK)
+  - 140905  # Keepit (DK)
+  - 204671  # Habr — медиа-портал (EE)
+  - 60592   # Gransy / anycastdns — DNS-инфраструктура (CZ)
+  - 208172  # Proton — почта и VPN, не VPS (CH)
+  - 51154   # pCloud — облачное хранилище (CH)
+  - 41766   # JobCloud — job-портал (CH)
+  - 208948  # e-Durable (CH)
+  # физические лица и случайные ASN без бизнеса по аренде серверов
+  - 202817  # Gabriel Engvall (SE)
+  - 208453  # Johan Karlsson (SE)
+  - 213693  # Imad Nabil Daher / ID Performance (DK)
+  - 206734  # Sebastian Buchmann (AT)
+  - 211066  # Simon Mariacher — дубль Ryzehosting (AT)
+  - 204990  # Dirk Webbeler Enterprises (IE)
+
+force_asns: []
+
+ru_asns: []
+
+names:
+  215136: Ryzehosting       # в PeeringDB сеть записана на владельца («Finn Hess trading as Ryzehosting»)
+
+locations: {}
+
+# Известность в русскоязычном VPN-сообществе: по умолчанию её оценивают по размеру сети, но у этих хостеров она выше.
+popularity:
+  204915: 5   # Hostinger
+  59851: 3    # SiteGround
+  26347: 3    # DreamHost
+  22611: 3    # InMotion Hosting
+  26666: 3    # Interserver
+  211895: 3   # Serverius
+  214313: 3   # WorldStream

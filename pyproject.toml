@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shadow-scout"
-version = "1.0.0"
+version = "1.1.0"
 description = "Поиск небольших VPS-провайдеров под VPN с оценкой риска блокировки РКН"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,11 +43,15 @@ shadow-scout = "shadow_scout.cli:main"
 include = ["shadow_scout*"]
 
 [tool.setuptools.package-data]
-shadow_scout = ["data/*.yaml", "data/fonts/*.ttf"]
+shadow_scout = ["data/*.yaml", "data/*.json", "data/fonts/*.ttf"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "network: тесты с реальной сетью (по умолчанию пропускаются; запуск: pytest -m network)",
+]
+addopts = "-m 'not network'"
 
 [tool.ruff]
 line-length = 110

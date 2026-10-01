@@ -6,7 +6,14 @@ import csv
 import json
 from pathlib import Path
 
-from shadow_scout.export.common import COLUMNS, rows_for
+from shadow_scout.export.common import (
+    COLUMNS,
+    PICK_COLUMNS,
+    holder_label,
+    location_title,
+    pick_rows,
+    rows_for,
+)
 from shadow_scout.models import VERDICT_COLORS, SearchResult
 
 
@@ -27,9 +34,25 @@ def write_json(result: SearchResult, path: Path) -> None:
 
 def write_markdown(result: SearchResult, path: Path) -> None:
     rows = rows_for(result)
-    keys = ["rank", "provider", "countries", "asns", "ipv4", "blocked_share", "ip_type", "trial", "hourly", "price", "survivability", "verdict", "confidence"]
+    keys = ["rank", "provider", "countries", "asns", "ipv4", "blocked_share", "ip_type", "trial", "hourly", "price", "survivability", "verdict", "confidence", "depth"]
     titles = {k: t for k, t in COLUMNS}
     lines = [f"# {result.title}", "", f"Создан: {result.generated_at.strftime('%Y-%m-%d %H:%M UTC')}  ", f"Запрос: {result.query.describe()}", ""]
+    picks = pick_rows(result)
+    if picks:
+        pick_keys = ["rank", "provider", "cities", "asns", "ipv4", "blocked_share", "trial", "hourly", "price", "survivability", "verdict", "depth"]
+        pick_titles = dict(PICK_COLUMNS)
+        lines += ["## Лучшие по локациям", ""]
+        for pick in result.picks:
+            if not pick.provider_ids:
+                reason = "в базе нет подходящих провайдеров" if not pick.candidates else "рекомендовать некого: все проанализированные критичны или без данных"
+                lines += ["", f"### {location_title(pick.country, pick.city)}", "", f"_{reason}._"]
+        current = None
+        for row in picks:
+            if row["location"] != current:
+                current = row["location"]
+                lines += ["", f"### {current}", "", "| " + " | ".join(pick_titles[k] for k in pick_keys) + " |", "|" + "|".join("---" for _ in pick_keys) + "|"]
+            lines.append("| " + " | ".join(row[k].replace("|", "/") for k in pick_keys) + " |")
+        lines += ["", "## Все проанализированные провайдеры", ""]
     lines.append("| " + " | ".join(titles[k] for k in keys) + " |")
     lines.append("|" + "|".join("---" for _ in keys) + "|")
     for row in rows:
@@ -41,7 +64,7 @@ def write_markdown(result: SearchResult, path: Path) -> None:
         if p.website:
             lines.append(f"Сайт: {p.website}  ")
         for a in report.asns:
-            lines.append(f"- AS{a.asn} — {a.holder or '?'}; IPv4: {a.ipv4_count}; в списках: {a.blocked_share:.2%}; префиксов: {len(a.prefixes_v4)}")
+            lines.append(f"- AS{a.asn} — {holder_label(report, a.holder)}; IPv4: {a.ipv4_count}; в списках: {a.blocked_share:.2%}; префиксов: {len(a.prefixes_v4)}")
         if report.hard_flags:
             lines.append("- **Флаги:** " + "; ".join(report.hard_flags))
         lines.append("")
@@ -64,6 +87,36 @@ def write_markdown(result: SearchResult, path: Path) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _write_picks_sheet(wb, result: SearchResult) -> None:
+    """Лист «По локациям»: на каждую локацию — лучшие провайдеры по порядку."""
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    rows = pick_rows(result)
+    if not rows:
+        return
+    sheet = wb.create_sheet("По локациям", 0)
+    sheet.append([title for _, title in PICK_COLUMNS])
+    for cell in sheet[1]:
+        cell.fill = PatternFill("solid", fgColor="1F2937")
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    numeric = {"rank", "survivability", "price", "blocked_share"}
+    for row in rows:
+        values = []
+        for key, _ in PICK_COLUMNS:
+            val = row[key]
+            if key in numeric and val not in ("—", ""):
+                val = float(val)
+            values.append(val)
+        sheet.append(values)
+    widths = {"location": 28, "provider": 26, "cities": 22, "asns": 16, "website": 30, "verdict": 18}
+    for idx, (key, _) in enumerate(PICK_COLUMNS, start=1):
+        sheet.column_dimensions[get_column_letter(idx)].width = widths.get(key, 13)
+    sheet.freeze_panes = "C2"
+    sheet.auto_filter.ref = sheet.dimensions
+
+
 def write_xlsx(result: SearchResult, path: Path) -> None:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -72,6 +125,7 @@ def write_xlsx(result: SearchResult, path: Path) -> None:
     wb = Workbook()
     ws = wb.active
     ws.title = "Провайдеры"
+    _write_picks_sheet(wb, result)
     header_fill = PatternFill("solid", fgColor="1F2937")
     header_font = Font(bold=True, color="FFFFFF")
     thin = Side(style="thin", color="D1D5DB")

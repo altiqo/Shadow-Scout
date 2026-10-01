@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from shadow_scout import selection
 from shadow_scout.analysis import signals as sig
 from shadow_scout.analysis.scoring import score_report
 from shadow_scout.cache import DiskCache
@@ -37,10 +38,13 @@ from shadow_scout.providers import CountryTable, load_countries
 
 MAX_ASNS_PER_PROVIDER = 3
 MAX_CHEBURCHECK_ASNS = 2
+FULL_ANALYSIS_MAX = 12  # до такого числа провайдеров проверяем всех полностью, без двухфазной схемы
+MAX_DEEP_ROUNDS = 4  # сколько раз повторять углубление, если лучшие на локацию после проверки «просели»
 
 StageCallback = Callable[[Provider, str, str], None]
 DoneCallback = Callable[[RiskReport], None]
 LogCallback = Callable[[str], None]
+PhaseCallback = Callable[[str, int], None]
 
 
 @dataclass
@@ -48,6 +52,7 @@ class ProgressHooks:
     on_stage: StageCallback | None = None
     on_done: DoneCallback | None = None
     on_log: LogCallback | None = None
+    on_phase: PhaseCallback | None = None
 
     def stage(self, provider: Provider, stage: str, message: str = "") -> None:
         if self.on_stage:
@@ -60,6 +65,10 @@ class ProgressHooks:
     def log(self, message: str) -> None:
         if self.on_log:
             self.on_log(message)
+
+    def phase(self, name: str, total: int) -> None:
+        if self.on_phase:
+            self.on_phase(name, total)
 
 
 @dataclass
@@ -127,13 +136,19 @@ def holder_matches(provider: Provider, holder: str | None) -> bool | None:
     if not holder:
         return None
     a = _norm_tokens(provider.name) | _norm_tokens(provider.asn_search or "") | _norm_tokens(provider.website_domain() or "")
+    for alias in provider.aliases:
+        a |= _norm_tokens(alias)
     b = _norm_tokens(holder)
     if not a or not b:
         return None
     if a & b:
         return True
-    joined = holder.lower().replace(" ", "")
-    return any(tok in joined for tok in a if len(tok) >= 4)
+    holder_joined = holder.lower().replace(" ", "")
+    if any(tok in holder_joined for tok in a if len(tok) >= 4):
+        return True
+    # «Hostpoint AG» ↔ провайдер «hostpoint-hosting»: токен держателя целиком входит в название провайдера
+    name_joined = "".join(sorted(a, key=len, reverse=True))
+    return any(tok in name_joined for tok in b if len(tok) >= 4)
 
 
 class AnalysisEngine:
@@ -171,26 +186,14 @@ class AnalysisEngine:
         return found, "search"
 
     # ───────────────────────── per-ASN data ─────────────────────────
-    async def collect_asn(self, provider: Provider, asn: int, bundle: BlocklistBundle | None) -> AsnInfo:
+    async def collect_prefix_data(self, provider: Provider, asn: int, bundle: BlocklistBundle | None, prefer: str = "ripestat") -> AsnInfo:
+        """Префиксы ASN и их пересечение со списками блокировок / CDN — только локальные вычисления после загрузки префиксов."""
         info = AsnInfo(asn=asn)
-        prefixes, source = await self.s.prefixes.prefixes(asn)
+        prefixes, source = await self.s.prefixes.prefixes(asn, prefer=prefer)
         info.prefix_source = source
         info.prefixes_v4 = [p for p in prefixes if ":" not in p]
         info.prefixes_v6 = [p for p in prefixes if ":" in p]
         info.ipv4_count = sum(ipv4_size(p) for p in info.prefixes_v4)
-        try:
-            overview = await self.s.ripe.as_overview(asn)
-            info.holder = overview.get("holder")
-        except HttpError:
-            record = await self.s.asn_names.get(asn)
-            if record:
-                info.holder = record.description or record.handle
-                info.country = record.country
-        if info.country is None:
-            record = await self.s.asn_names.get(asn) if self.s.asn_names.loaded else None
-            if record:
-                info.country = record.country
-        info.holder_matches_provider = holder_matches(provider, info.holder)
         if bundle is not None and bundle.ok_lists:
             blocked_total = 0
             for prefix in info.prefixes_v4:
@@ -202,17 +205,52 @@ class AnalysisEngine:
             info.blocked_share = blocked_total / info.ipv4_count if info.ipv4_count else 0.0
         if bundle is not None and bundle.cdn:
             info.cdn_prefixes = [p for p in info.prefixes_v4 if bundle.cdn_provider_for(p)]
-        try:
-            info.peeringdb = await self.s.peeringdb.net_by_asn(asn)
-        except HttpError:
-            info.peeringdb = None
+        if provider.source == "catalog" and provider.pdb_types:
+            # снимок PeeringDB из каталога — без сетевого запроса на каждый ASN
+            info.peeringdb = {"info_types": list(provider.pdb_types), "info_traffic": provider.pdb_traffic, "info_scope": None}
         return info
 
+    async def enrich_asn(self, provider: Provider, info: AsnInfo) -> AsnInfo:
+        """Холдер, страна и тип сети (PeeringDB) — запросы к внешним источникам, нужны только для полной проверки."""
+        if info.holder is None:
+            try:
+                overview = await self.s.ripe.as_overview(info.asn)
+                info.holder = overview.get("holder")
+            except HttpError:
+                record = await self.s.asn_names.get(info.asn)
+                if record:
+                    info.holder = record.description or record.handle
+                    info.country = record.country
+        if info.country is None:
+            record = await self.s.asn_names.get(info.asn) if self.s.asn_names.loaded else None
+            if record:
+                info.country = record.country
+        info.holder_matches_provider = holder_matches(provider, info.holder)
+        if info.peeringdb is None:
+            try:
+                info.peeringdb = await self.s.peeringdb.net_by_asn(info.asn)
+            except HttpError:
+                info.peeringdb = None
+        return info
+
+    async def collect_asn(self, provider: Provider, asn: int, bundle: BlocklistBundle | None) -> AsnInfo:
+        info = await self.collect_prefix_data(provider, asn, bundle)
+        return await self.enrich_asn(provider, info)
+
     # ───────────────────────── provider ─────────────────────────
-    async def analyze(self, provider: Provider, query: SearchQuery | None = None) -> RiskReport:
+    async def analyze(
+        self, provider: Provider, query: SearchQuery | None = None, mode: str = "full", previous: RiskReport | None = None
+    ) -> RiskReport:
+        """Оценка провайдера.
+
+        mode="quick" — только префиксы и локальные списки блокировок (быстро, без лимитов внешних API);
+        mode="full" — плюс cheburcheck, ip-api, PeeringDB, живые пробы. previous — результат быстрой проверки:
+        его префиксы переиспользуются, а не запрашиваются заново.
+        """
+        quick = mode == "quick"
         query = query or SearchQuery()
         started = time.monotonic()
-        report = RiskReport(provider=provider)
+        report = RiskReport(provider=provider, depth="quick" if quick else "full")
         report.matched_locations = provider.locations_in(query.countries) if query.countries else list(provider.locations)
         bundle = self.s.bundle
         lists_ok = bool(bundle and bundle.ok_lists)
@@ -227,9 +265,11 @@ class AnalysisEngine:
             report.warnings.append("ASN найден поиском по названию — проверьте holder в отчёте")
 
         self.hooks.stage(provider, "prefixes", f"префиксы и списки блокировок ({len(asns)} ASN)")
+        known = {a.asn: a for a in previous.asns} if previous is not None else {}
         for asn in asns:
             try:
-                report.asns.append(await self.collect_asn(provider, asn, bundle))
+                info = known.get(asn) or await self.collect_prefix_data(provider, asn, bundle, prefer="ipverse" if quick else "ripestat")
+                report.asns.append(info if quick else await self.enrich_asn(provider, info))
             except Exception as exc:  # noqa: BLE001
                 report.warnings.append(f"AS{asn}: ошибка сбора данных ({exc})")
         for a in report.asns:
@@ -241,7 +281,7 @@ class AnalysisEngine:
         cc_site: dict[str, Any] | None = None
         cc_error: str | None = None
         domain = provider.website_domain()
-        if cfg_cc.enabled:
+        if cfg_cc.enabled and not quick:
             self.hooks.stage(provider, "cheburcheck", "запросы к cheburcheck.ru")
             if cfg_cc.check_asn:
                 for a in report.asns[:MAX_CHEBURCHECK_ASNS]:
@@ -261,7 +301,7 @@ class AnalysisEngine:
         # ip-api sampling
         ipapi_data: dict[str, dict[str, Any]] = {}
         sample: list[str] = []
-        if self.settings.sources.ipapi.enabled and report.asns:
+        if self.settings.sources.ipapi.enabled and report.asns and not quick:
             self.hooks.stage(provider, "ipapi", "классификация IP-пула")
             sample = self._sample_from_asns(report.asns, self.settings.sources.ipapi.samples_per_asn)
             if sample:
@@ -274,7 +314,7 @@ class AnalysisEngine:
         probe_outcomes: list[dict[str, Any]] | None = None
         control_ok: bool | None = None
         website_ips: list[str] = []
-        live_enabled = query.live_probe or self.settings.live_probe.enabled
+        live_enabled = (query.live_probe or self.settings.live_probe.enabled) and not quick
         if live_enabled:
             self.hooks.stage(provider, "probe", "живые TCP-пробы")
             control_ok = await control_reachable(self.settings.live_probe)
@@ -291,15 +331,15 @@ class AnalysisEngine:
         matched_cc = [loc.country for loc in report.matched_locations]
         report.signals = [
             sig.blocklist_overlap(report.asns, weights, lists_ok),
-            sig.cheburcheck_asn(cc_asn_results, weights, cfg_cc.enabled and cfg_cc.check_asn, cc_error),
-            sig.cheburcheck_site(cc_site, domain, weights, cfg_cc.enabled and cfg_cc.check_website, cc_error),
+            sig.cheburcheck_asn(cc_asn_results, weights, cfg_cc.enabled and cfg_cc.check_asn, cc_error, quick),
+            sig.cheburcheck_site(cc_site, domain, weights, cfg_cc.enabled and cfg_cc.check_website, cc_error, quick),
             sig.asn_size(report.asns, weights, self.settings.scoring.thresholds.small_asn_ipv4),
             sig.network_type(provider, report.asns, ipapi_data, weights),
             sig.popularity(provider, weights),
             sig.jurisdiction(provider, matched_cc, self.s.countries, weights),
             sig.cdn_membership(report.asns, weights, bool(bundle and bundle.cdn)),
             sig.ru_ties(provider, weights),
-            sig.complaints(cc_asn_results + ([cc_site] if cc_site else []), weights, cfg_cc.enabled),
+            sig.complaints(cc_asn_results + ([cc_site] if cc_site else []), weights, cfg_cc.enabled, quick),
             sig.live_probe(probe_outcomes, control_ok, website_ips, weights, live_enabled),
             sig.asn_fragmentation(report.asns, weights),
         ]
@@ -324,15 +364,16 @@ class AnalysisEngine:
         return list(dict.fromkeys(out))[: per_asn * max(1, len(asns))]
 
     # ───────────────────────── batch ─────────────────────────
-    async def run_search(self, providers: list[Provider], query: SearchQuery, title: str | None = None) -> SearchResult:
-        started = time.monotonic()
+    async def _run_batch(
+        self, providers: list[Provider], query: SearchQuery, mode: str, previous: dict[str, RiskReport] | None = None
+    ) -> list[RiskReport]:
         semaphore = asyncio.Semaphore(max(1, self.settings.network.concurrency))
         reports: list[RiskReport] = []
 
         async def worker(provider: Provider) -> None:
             async with semaphore:
                 try:
-                    reports.append(await self.analyze(provider, query))
+                    reports.append(await self.analyze(provider, query, mode, (previous or {}).get(provider.id)))
                 except Exception as exc:  # noqa: BLE001
                     report = RiskReport(provider=provider, warnings=[f"Анализ прерван ошибкой: {exc}"])
                     score_report(report, self.settings.scoring, self.s.countries)
@@ -340,11 +381,45 @@ class AnalysisEngine:
                     self.hooks.done(report)
 
         await asyncio.gather(*(worker(p) for p in providers))
-        if query.max_risk:
-            order = ["low", "moderate", "high", "critical", "unknown"]
-            limit = order.index(query.max_risk)
-            reports = [r for r in reports if r.verdict == "unknown" or order.index(r.verdict) <= limit]
-        result = SearchResult(query=query, reports=reports, sources=self.s.source_statuses())
+        return reports
+
+    async def run_search(
+        self, providers: list[Provider], query: SearchQuery, title: str | None = None, plan: selection.Plan | None = None
+    ) -> SearchResult:
+        """Анализ списка провайдеров.
+
+        Малые списки проверяются полностью. Большие — в две фазы: быстрая проверка всех по локальным данным, затем
+        полная (cheburcheck и др.) только для лучших на каждую локацию. Если после полной проверки лучшие «просели»,
+        в топ поднимаются следующие, и их тоже проверяют (до MAX_DEEP_ROUNDS раундов).
+        """
+        started = time.monotonic()
+        by_id = {p.id: p for p in providers}
+        reports: dict[str, RiskReport] = {}
+        if query.deep_per_location <= 0:
+            self.hooks.phase("quick", len(providers))
+            reports = {r.provider.id: r for r in await self._run_batch(providers, query, "quick")}
+        elif len(providers) <= FULL_ANALYSIS_MAX:
+            self.hooks.phase("full", len(providers))
+            reports = {r.provider.id: r for r in await self._run_batch(providers, query, "full")}
+        else:
+            self.hooks.phase("quick", len(providers))
+            reports = {r.provider.id: r for r in await self._run_batch(providers, query, "quick")}
+            for _ in range(MAX_DEEP_ROUNDS):
+                need = selection.deep_targets(selection.filter_reports(list(reports.values()), query), query)
+                if not need:
+                    break
+                self.hooks.phase("deep", len(need))
+                deep = await self._run_batch([by_id[pid] for pid in need], query, "full", previous=reports)
+                reports.update({r.provider.id: r for r in deep})
+        final = selection.filter_reports(list(reports.values()), query)
+        result = SearchResult(
+            query=query,
+            reports=final,
+            sources=self.s.source_statuses(),
+            picks=selection.build_picks(final, query, group_counts=plan.groups if plan else None),
+            candidates_total=plan.matched if plan else len(providers),
+            candidates_analyzed=len(providers),
+        )
         result.duration_seconds = round(time.monotonic() - started, 1)
         if title:
             result.title = title

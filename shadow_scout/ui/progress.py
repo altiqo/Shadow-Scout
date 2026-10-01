@@ -35,6 +35,12 @@ STAGE_LABELS = {
     "score": "оценка",
 }
 
+PHASE_TITLES = {
+    "quick": "Быстрая проверка по локальным данным",
+    "deep": "Полная проверка лучших (cheburcheck и др.)",
+    "full": "Анализ провайдеров",
+}
+
 
 class SearchProgress:
     def __init__(self, total: int, title: str = "Анализ провайдеров") -> None:
@@ -74,8 +80,13 @@ class SearchProgress:
         self.logs = self.logs[-5:]
         self._refresh()
 
+    def on_phase(self, name: str, total: int) -> None:
+        self.progress.reset(self.task_id, total=total, completed=0, description=PHASE_TITLES.get(name, name))
+        self.active.clear()
+        self._refresh()
+
     def hooks(self) -> ProgressHooks:
-        return ProgressHooks(on_stage=self.on_stage, on_done=self.on_done, on_log=self.on_log)
+        return ProgressHooks(on_stage=self.on_stage, on_done=self.on_done, on_log=self.on_log, on_phase=self.on_phase)
 
     # ───── rendering ─────
     def _render(self) -> Group:

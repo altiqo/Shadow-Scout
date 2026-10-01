@@ -74,10 +74,15 @@ def blocklist_overlap(asns: list[AsnInfo], weights: ScoringWeights, lists_ok: bo
 
 
 # ───────────────────────── 2. cheburcheck: проверка ASN ─────────────────────────
-def cheburcheck_asn(results: list[dict[str, Any]], weights: ScoringWeights, enabled: bool, error: str | None) -> Signal:
+QUICK_REASON = "не запрашивалось: быстрая проверка (полная — для лучших кандидатов на локацию)"
+
+
+def cheburcheck_asn(results: list[dict[str, Any]], weights: ScoringWeights, enabled: bool, error: str | None, quick: bool = False) -> Signal:
     key, title, w = "cheburcheck_asn", "cheburcheck.ru: ASN в реестре", weights.cheburcheck_asn
     if not enabled:
         return skipped(key, title, w, "cheburcheck отключён в настройках")
+    if quick:
+        return unavailable(key, title, w, QUICK_REASON)
     if error and not results:
         return unavailable(key, title, w, f"cheburcheck недоступен: {error}")
     if not results:
@@ -113,12 +118,14 @@ def cheburcheck_asn(results: list[dict[str, Any]], weights: ScoringWeights, enab
 
 
 # ───────────────────────── 3. cheburcheck: сайт провайдера ─────────────────────────
-def cheburcheck_site(result: dict[str, Any] | None, domain: str | None, weights: ScoringWeights, enabled: bool, error: str | None) -> Signal:
+def cheburcheck_site(result: dict[str, Any] | None, domain: str | None, weights: ScoringWeights, enabled: bool, error: str | None, quick: bool = False) -> Signal:
     key, title, w = "cheburcheck_site", "cheburcheck.ru: сайт провайдера", weights.cheburcheck_site
     if not enabled:
         return skipped(key, title, w, "cheburcheck отключён в настройках")
     if not domain:
         return skipped(key, title, w, "у провайдера не указан сайт")
+    if quick:
+        return unavailable(key, title, w, QUICK_REASON)
     if result is None:
         return unavailable(key, title, w, f"нет данных по {domain}" + (f": {error}" if error else ""))
     if result.get("rkn_domain"):
@@ -230,10 +237,12 @@ def ru_ties(provider: Provider, weights: ScoringWeights) -> Signal:
 
 
 # ───────────────────────── 10. Жалобы пользователей cheburcheck ─────────────────────────
-def complaints(results: list[dict[str, Any]], weights: ScoringWeights, enabled: bool) -> Signal:
+def complaints(results: list[dict[str, Any]], weights: ScoringWeights, enabled: bool, quick: bool = False) -> Signal:
     key, title, w = "complaints", "Жалобы пользователей (14 дней)", weights.complaints
     if not enabled:
         return skipped(key, title, w, "cheburcheck отключён")
+    if quick:
+        return unavailable(key, title, w, QUICK_REASON)
     if not results:
         return unavailable(key, title, w, "нет данных cheburcheck")
     total = sum(int(r.get("complaints_total") or 0) for r in results)

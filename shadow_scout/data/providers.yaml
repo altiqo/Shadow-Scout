@@ -36,7 +36,7 @@ providers:
     popularity_ru: 1
     ip_type: mixed
     trial: false
-    hourly: false
+    hourly: true
     payment: [card, invoice]
     b2b_focus: true
     notes: Шведский интернет-провайдер и оператор ДЦ (Pionen). Смешанные пулы ISP/DCH, известен позицией по приватности.
@@ -44,14 +44,14 @@ providers:
   - id: oderland
     name: Oderland
     website: https://www.oderland.se
-    asn_search: Oderland
+    asns: [44136]
     hq_country: SE
     locations: [{country: SE, city: Göteborg}]
     size: small
     popularity_ru: 1
     ip_type: dch
     trial: false
-    hourly: false
+    hourly: true
     min_price_eur: 6
     payment: [card, invoice]
     notes: Локальный веб-хостер с VPS, ориентирован на шведский рынок.
@@ -59,7 +59,7 @@ providers:
   - id: hostup
     name: Hostup
     website: https://hostup.se
-    asn_search: Hostup
+    asns: [214640]
     hq_country: SE
     locations: [{country: SE, city: Stockholm}]
     size: micro
@@ -74,7 +74,7 @@ providers:
   - id: elastx
     name: Elastx
     website: https://elastx.se
-    asn_search: Elastx
+    asns: [48579]
     hq_country: SE
     locations: [{country: SE, city: Stockholm}]
     size: small
@@ -89,7 +89,7 @@ providers:
   - id: binero
     name: Binero
     website: https://binero.com
-    asn_search: Binero
+    asns: [35041]
     hq_country: SE
     locations: [{country: SE, city: Stockholm}]
     size: small
@@ -104,7 +104,7 @@ providers:
   - id: cleura
     name: Cleura (City Network)
     website: https://cleura.com
-    asn_search: City Network
+    asns: [42695]
     hq_country: SE
     locations: [{country: SE, city: Karlskrona}, {country: SE, city: Stockholm}, {country: DE, city: Frankfurt}]
     size: small
@@ -119,7 +119,7 @@ providers:
   - id: tripnet
     name: Tripnet
     website: https://www.tripnet.se
-    asn_search: Tripnet
+    asns: [34385]
     hq_country: SE
     locations: [{country: SE, city: Göteborg}]
     size: small
@@ -134,7 +134,7 @@ providers:
   - id: inleed
     name: Inleed
     website: https://inleed.se
-    asn_search: Inleed
+    asns: [206170]
     hq_country: SE
     locations: [{country: SE, city: Stockholm}]
     size: micro
@@ -166,7 +166,7 @@ providers:
   - id: creanova
     name: Creanova
     website: https://creanova.org
-    asn_search: Creanova
+    asns: [51765, 204187]
     hq_country: FI
     locations: [{country: FI, city: Helsinki}]
     size: micro
@@ -178,24 +178,10 @@ providers:
     payment: [card, paypal]
     notes: Небольшой финский хостер с VPS в Хельсинки.
     tags: [local]
-  - id: louhi
-    name: Louhi
-    website: https://www.louhi.fi
-    asn_search: Louhi
-    hq_country: FI
-    locations: [{country: FI, city: Helsinki}]
-    size: small
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    payment: [card, invoice]
-    notes: Финский веб-хостер с VPS, ориентирован на внутренний рынок.
-    tags: [local]
   - id: zoner
     name: Zoner
     website: https://www.zoner.fi
-    asn_search: Zoner
+    asns: [201692]
     hq_country: FI
     locations: [{country: FI, city: Helsinki}]
     size: small
@@ -206,35 +192,6 @@ providers:
     payment: [card, invoice]
     notes: Финский хостер (домены, хостинг, VPS) для местного рынка.
     tags: [local]
-  - id: hostingpalvelu
-    name: Hostingpalvelu
-    website: https://www.hostingpalvelu.fi
-    asn_search: Hostingpalvelu
-    hq_country: FI
-    locations: [{country: FI, city: Helsinki}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    payment: [card, invoice]
-    notes: Небольшой финский хостер с VPS.
-    tags: [local]
-  - id: nebula
-    name: Telia Inmics-Nebula
-    website: https://www.nebula.fi
-    asn_search: Nebula Oy
-    hq_country: FI
-    locations: [{country: FI, city: Helsinki}]
-    size: medium
-    popularity_ru: 1
-    ip_type: mixed
-    trial: false
-    hourly: false
-    payment: [invoice]
-    b2b_focus: true
-    notes: Корпоративный финский оператор/облако, работа по договору.
-    tags: [local, b2b, isp]
   # ───────────────────────────── Исландия ─────────────────────────────
   - id: "1984"
     name: 1984 Hosting
@@ -269,7 +226,8 @@ providers:
   - id: orangewebsite
     name: OrangeWebsite
     website: https://www.orangewebsite.com
-    asn_search: Orangewebsite
+    asns: [50613]
+    aliases: ["ThorDC", "Advania"]
     hq_country: IS
     locations: [{country: IS, city: Reykjavik}]
     size: micro
@@ -279,35 +237,20 @@ providers:
     hourly: false
     min_price_eur: 8
     payment: [card, paypal, crypto]
-    notes: Исландский offshore-хостер, VPS с приватностью.
+    notes: Исландский offshore-хостер, VPS с приватностью. IP-пространство в дата-центре ThorDC (Advania, AS50613).
     tags: [privacy, crypto]
-  - id: atnorth
-    name: atNorth (ex-Advania DC)
-    website: https://www.atnorth.com
-    asn_search: atNorth
-    hq_country: IS
-    locations: [{country: IS, city: Reykjavik}, {country: SE, city: Stockholm}, {country: FI, city: Helsinki}]
-    size: medium
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    payment: [invoice]
-    b2b_focus: true
-    notes: Корпоративный оператор ДЦ в Скандинавии (HPC/колокация), работа по договору.
-    tags: [b2b, colo]
   # ───────────────────────────── Венгрия ─────────────────────────────
   - id: rackforest
     name: Rackforest
     website: https://rackforest.com
-    asn_search: Rackforest
+    asns: [62214]
     hq_country: HU
     locations: [{country: HU, city: Budapest}]
     size: small
     popularity_ru: 1
     ip_type: dch
     trial: false
-    hourly: false
+    hourly: true
     min_price_eur: 4
     payment: [card, paypal, invoice]
     notes: Венгерский хостер с VPS и колокацией, ориентирован на локальный рынок.
@@ -328,25 +271,10 @@ providers:
     payment: [card, paypal, crypto]
     notes: Будапештский хостер с международным маркетингом и криптооплатой.
     tags: [crypto]
-  - id: dotroll
-    name: DotRoll
-    website: https://dotroll.com
-    asn_search: DotRoll
-    hq_country: HU
-    locations: [{country: HU, city: Budapest}]
-    size: small
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card, paypal]
-    notes: Венгерский регистратор и хостер с VPS.
-    tags: [local]
   - id: tarhely
     name: Tárhely.Eu
     website: https://tarhely.eu
-    asn_search: Tarhely.Eu
+    asns: [43359]
     hq_country: HU
     locations: [{country: HU, city: Budapest}]
     size: small
@@ -358,40 +286,10 @@ providers:
     payment: [card, paypal]
     notes: Крупнейший локальный венгерский веб-хостер, есть VPS.
     tags: [local]
-  - id: ezit
-    name: Websupport Hungary (ex-EZIT)
-    website: https://www.websupport.hu
-    asn_search: EZIT
-    hq_country: HU
-    locations: [{country: HU, city: Budapest}]
-    size: small
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card]
-    notes: Венгерский хостер (группа Websupport/Loopia).
-    tags: [local]
-  - id: nethely
-    name: Nethely
-    website: https://www.nethely.hu
-    asn_search: Nethely
-    hq_country: HU
-    locations: [{country: HU, city: Budapest}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 4
-    payment: [card]
-    notes: Небольшой локальный венгерский хостер.
-    tags: [local]
   - id: 23vnet
     name: 23VNet
     website: https://23vnet.hu
-    asn_search: 23VNet
+    asns: [30836]
     hq_country: HU
     locations: [{country: HU, city: Budapest}]
     size: small
@@ -406,10 +304,11 @@ providers:
   - id: invitech
     name: Invitech
     website: https://www.invitech.hu
-    asn_search: Invitech
+    asns: [8696]
+    aliases: ["Invitech ICT"]
     hq_country: HU
     locations: [{country: HU, city: Budapest}]
-    size: medium
+    size: small
     popularity_ru: 1
     ip_type: isp
     trial: false
@@ -418,20 +317,6 @@ providers:
     b2b_focus: true
     notes: Корпоративный телеком-оператор Венгрии с облачными услугами.
     tags: [local, b2b, isp]
-  - id: deninet
-    name: Deninet
-    website: https://www.deninet.hu
-    asn_search: Deninet
-    hq_country: HU
-    locations: [{country: HU, city: Budapest}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    payment: [card, invoice]
-    notes: Небольшой венгерский хостер и оператор.
-    tags: [local]
   # ───────────────────────────── Норвегия / Дания ─────────────────────────────
   - id: blix
     name: Blix Solutions
@@ -448,25 +333,11 @@ providers:
     b2b_focus: true
     notes: Норвежский B2B-хостер и оператор ДЦ.
     tags: [local, b2b]
-  - id: terrahost
-    name: Terrahost
-    website: https://terrahost.com
-    asns: [56655]
-    hq_country: "NO"
-    locations: [{country: "NO", city: Sandefjord}]
-    size: small
-    popularity_ru: 2
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card, paypal, crypto]
-    notes: Норвежский VPS-хостер, принимает крипту; известен в приватных кругах.
-    tags: [crypto]
   - id: zetta
     name: Zetta.IO
     website: https://www.zetta.io
-    asn_search: Zetta.IO
+    asns: [60130]
+    aliases: ["Nexthop"]
     hq_country: "NO"
     locations: [{country: "NO", city: Oslo}]
     size: micro
@@ -497,7 +368,7 @@ providers:
   - id: servetheworld
     name: Servetheworld
     website: https://servetheworld.net
-    asn_search: Servetheworld
+    asns: [34989]
     hq_country: "NO"
     locations: [{country: "NO", city: Oslo}]
     size: micro
@@ -512,7 +383,8 @@ providers:
   - id: zitcom
     name: Zitcom
     website: https://www.zitcom.dk
-    asn_search: Zitcom
+    asns: [204652]
+    aliases: ["team.blue"]
     hq_country: DK
     locations: [{country: DK, city: Skanderborg}]
     size: small
@@ -524,24 +396,10 @@ providers:
     b2b_focus: true
     notes: Датский хостер (группа team.blue), VPS и облако для бизнеса.
     tags: [local, b2b]
-  - id: hosting4real
-    name: Hosting4Real
-    website: https://hosting4real.net
-    asn_search: Hosting4Real
-    hq_country: DK
-    locations: [{country: DK, city: Copenhagen}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    payment: [card]
-    notes: Небольшой датский хостер.
-    tags: [local]
   - id: netgroup
     name: Netgroup
     website: https://netgroup.dk
-    asn_search: Netgroup A/S
+    asns: [35004]
     hq_country: DK
     locations: [{country: DK, city: Copenhagen}]
     size: small
@@ -557,7 +415,7 @@ providers:
   - id: zone-ee
     name: Zone.ee
     website: https://www.zone.ee
-    asn_search: Zone Media
+    asns: [49604, 52145]
     hq_country: EE
     locations: [{country: EE, city: Tallinn}]
     size: small
@@ -572,7 +430,7 @@ providers:
   - id: elkdata
     name: Elkdata / Veebimajutus
     website: https://www.veebimajutus.ee
-    asn_search: Elkdata
+    asns: [61189]
     hq_country: EE
     locations: [{country: EE, city: Tallinn}]
     size: micro
@@ -587,7 +445,7 @@ providers:
   - id: bluevps
     name: BlueVPS
     website: https://bluevps.com
-    asn_search: BlueVPS
+    asns: [62005]
     hq_country: EE
     locations: [{country: EE, city: Tallinn}, {country: NL, city: Amsterdam}, {country: DE, city: Frankfurt}, {country: GB, city: London}, {country: US, city: Dallas}]
     size: small
@@ -602,7 +460,7 @@ providers:
   - id: veesp
     name: Veesp
     website: https://veesp.com
-    asn_search: Veesp
+    asns: [42532, 43317]
     hq_country: EE
     locations: [{country: EE, city: Tallinn}]
     size: small
@@ -617,7 +475,8 @@ providers:
   - id: deac
     name: DEAC
     website: https://www.deac.eu
-    asn_search: DEAC
+    asns: [12993]
+    aliases: ["DELSKA"]
     hq_country: LV
     locations: [{country: LV, city: Riga}, {country: NL, city: Amsterdam}]
     size: small
@@ -629,21 +488,6 @@ providers:
     b2b_focus: true
     notes: Латвийский корпоративный оператор ДЦ.
     tags: [local, b2b, colo]
-  - id: latnet
-    name: Latnet Serviss
-    website: https://www.latnet.lv
-    asn_search: LATNET
-    hq_country: LV
-    locations: [{country: LV, city: Riga}]
-    size: small
-    popularity_ru: 1
-    ip_type: isp
-    trial: false
-    hourly: false
-    payment: [invoice]
-    b2b_focus: true
-    notes: Латвийский B2B интернет-провайдер с хостингом.
-    tags: [local, b2b, isp]
   - id: melbicom
     name: Melbicom
     website: https://melbicom.net
@@ -677,7 +521,8 @@ providers:
   - id: hostens
     name: Hostens (Interneto vizija)
     website: https://hostens.com
-    asn_search: Interneto vizija
+    asns: [212531]
+    aliases: ["Interneto vizija"]
     hq_country: LT
     locations: [{country: LT, city: Vilnius}]
     size: small
@@ -689,21 +534,6 @@ providers:
     payment: [card, paypal, crypto]
     notes: Бюджетный литовский VPS-хостер.
     tags: [budget, crypto]
-  - id: balticservers
-    name: Baltic Servers
-    website: https://www.balticservers.com
-    asn_search: Baltic Servers
-    hq_country: LT
-    locations: [{country: LT, city: Vilnius}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card, paypal]
-    notes: Небольшой литовский хостер.
-    tags: [local]
   # ───────────────────────────── Чехия / Словакия ─────────────────────────────
   - id: wedos
     name: WEDOS
@@ -738,7 +568,8 @@ providers:
   - id: forpsi
     name: Forpsi
     website: https://www.forpsi.com
-    asn_search: Forpsi
+    asns: [24806]
+    aliases: ["INTERNET CZ"]
     hq_country: CZ
     locations: [{country: CZ, city: Ktiš}]
     size: medium
@@ -753,7 +584,7 @@ providers:
   - id: vshosting
     name: vshosting
     website: https://vshosting.eu
-    asn_search: vshosting
+    asns: [43541, 51025]
     hq_country: CZ
     locations: [{country: CZ, city: Prague}]
     size: small
@@ -768,7 +599,7 @@ providers:
   - id: coolhousing
     name: Coolhousing
     website: https://www.coolhousing.net
-    asn_search: Coolhousing
+    asns: [35592]
     hq_country: CZ
     locations: [{country: CZ, city: Prague}]
     size: micro
@@ -780,25 +611,10 @@ providers:
     payment: [card, invoice]
     notes: Небольшой пражский хостер (VPS, колокация).
     tags: [local]
-  - id: hosting90
-    name: Hosting90
-    website: https://www.hosting90.cz
-    asn_search: Hosting90
-    hq_country: CZ
-    locations: [{country: CZ, city: Prague}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 4
-    payment: [card]
-    notes: Небольшой чешский хостер с VPS.
-    tags: [local]
   - id: websupport-sk
     name: Websupport
     website: https://www.websupport.sk
-    asn_search: Websupport
+    asns: [51013]
     hq_country: SK
     locations: [{country: SK, city: Bratislava}]
     size: small
@@ -809,21 +625,6 @@ providers:
     min_price_eur: 5
     payment: [card]
     notes: Словацкий локальный хостер с VPS.
-    tags: [local]
-  - id: hostcreators
-    name: Hostcreators
-    website: https://www.hostcreators.sk
-    asn_search: Hostcreators
-    hq_country: SK
-    locations: [{country: SK, city: Bratislava}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 4
-    payment: [card]
-    notes: Небольшой словацкий хостер.
     tags: [local]
   # ───────────────────────────── Австрия / Швейцария ─────────────────────────────
   - id: anexia
@@ -859,7 +660,7 @@ providers:
   - id: easyname
     name: easyname
     website: https://www.easyname.com
-    asn_search: easyname
+    asns: [208582]
     hq_country: AT
     locations: [{country: AT, city: Vienna}]
     size: small
@@ -871,25 +672,10 @@ providers:
     payment: [card]
     notes: Австрийский регистратор и хостер с VPS.
     tags: [local]
-  - id: world4you
-    name: World4You
-    website: https://www.world4you.com
-    asn_search: World4You
-    hq_country: AT
-    locations: [{country: AT, city: Linz}]
-    size: small
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card, invoice]
-    notes: Австрийский локальный хостер.
-    tags: [local]
   - id: ipax
     name: IPAX
     website: https://www.ipax.at
-    asn_search: IPAX
+    asns: [44133]
     hq_country: AT
     locations: [{country: AT, city: Vienna}]
     size: micro
@@ -919,7 +705,7 @@ providers:
   - id: hostpoint
     name: Hostpoint
     website: https://www.hostpoint.ch
-    asns: [29691]
+    asns: [29097]
     hq_country: CH
     locations: [{country: CH, city: Zurich}]
     size: small
@@ -951,7 +737,7 @@ providers:
   - id: cloudscale
     name: cloudscale.ch
     website: https://www.cloudscale.ch
-    asn_search: cloudscale
+    asns: [59414]
     hq_country: CH
     locations: [{country: CH, city: Zurich}, {country: CH, city: Lupfig}]
     size: small
@@ -966,7 +752,7 @@ providers:
   - id: nine
     name: nine.ch
     website: https://www.nine.ch
-    asn_search: nine.ch
+    asns: [29691]
     hq_country: CH
     locations: [{country: CH, city: Zurich}]
     size: small
@@ -981,7 +767,7 @@ providers:
   - id: hosttech
     name: hosttech
     website: https://www.hosttech.ch
-    asn_search: hosttech
+    asns: [207143]
     hq_country: CH
     locations: [{country: CH, city: Zurich}]
     size: small
@@ -996,7 +782,7 @@ providers:
   - id: ungleich
     name: ungleich / Data Center Light
     website: https://ungleich.ch
-    asn_search: ungleich
+    asns: [209898, 211894]
     hq_country: CH
     locations: [{country: CH, city: Linthal}]
     size: micro
@@ -1011,7 +797,7 @@ providers:
   - id: flowswiss
     name: Flow Swiss
     website: https://flow.swiss
-    asn_search: Flow Swiss
+    asns: [200759, 202411]
     hq_country: CH
     locations: [{country: CH, city: Zurich}]
     size: micro
@@ -1025,7 +811,7 @@ providers:
   - id: privex
     name: Privex
     website: https://www.privex.io
-    asn_search: Privex
+    asns: [210083]
     hq_country: BZ
     locations: [{country: SE, city: Stockholm}, {country: FI, city: Helsinki}, {country: DE, city: Frankfurt}, {country: NL, city: Amsterdam}, {country: US, city: Los Angeles}]
     size: micro
@@ -1166,7 +952,7 @@ providers:
     popularity_ru: 4
     ip_type: dch
     trial: false
-    hourly: false
+    hourly: true
     min_price_eur: 4
     payment: [card, paypal, crypto]
     ru_ties: true
@@ -1190,7 +976,8 @@ providers:
   - id: fuga
     name: Fuga Cloud
     website: https://fuga.cloud
-    asn_search: Fuga
+    asns: [44694]
+    aliases: ["Cyso"]
     hq_country: NL
     locations: [{country: NL, city: Amsterdam}]
     size: micro
@@ -1205,7 +992,7 @@ providers:
   - id: previder
     name: Previder
     website: https://www.previder.nl
-    asn_search: Previder
+    asns: [20847]
     hq_country: NL
     locations: [{country: NL, city: Hengelo}]
     size: small
@@ -1217,36 +1004,6 @@ providers:
     b2b_focus: true
     notes: Нидерландский корпоративный оператор ДЦ (регион Twente).
     tags: [local, b2b]
-  - id: snel
-    name: Snel.com
-    website: https://www.snel.com
-    asn_search: Snel
-    hq_country: NL
-    locations: [{country: NL, city: Rotterdam}]
-    size: small
-    popularity_ru: 2
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card, paypal, crypto]
-    notes: Нидерландский VPS/dedicated хостер.
-    tags: [crypto]
-  - id: mihos
-    name: Mihos
-    website: https://mihos.net
-    asn_search: Mihos
-    hq_country: NL
-    locations: [{country: NL, city: Amsterdam}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 4
-    payment: [card, paypal]
-    notes: Небольшой нидерландский VPS-хостер.
-    tags: []
   # ───────────────────────────── Германия ─────────────────────────────
   - id: hetzner
     name: Hetzner
@@ -1327,6 +1084,7 @@ providers:
     name: combahton
     website: https://combahton.net
     asns: [30823]
+    aliases: ["aurologic"]
     hq_country: DE
     locations: [{country: DE, city: Frankfurt}]
     size: small
@@ -1371,7 +1129,7 @@ providers:
   - id: servinga
     name: servinga
     website: https://servinga.com
-    asn_search: servinga
+    asns: [39378, 58329, 200220]
     hq_country: DE
     locations: [{country: DE, city: Frankfurt}, {country: EE, city: Tallinn}]
     size: micro
@@ -1383,21 +1141,6 @@ providers:
     payment: [card, paypal]
     notes: Небольшой немецкий VPS-хостер с локацией в Таллине.
     tags: []
-  - id: avoro
-    name: avoro
-    website: https://avoro.eu
-    asn_search: avoro
-    hq_country: DE
-    locations: [{country: DE, city: Frankfurt}]
-    size: micro
-    popularity_ru: 2
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 3
-    payment: [card, paypal]
-    notes: Бюджетный немецкий VPS-хостер.
-    tags: [budget]
   - id: gcore
     name: Gcore
     website: https://gcore.com
@@ -1436,7 +1179,7 @@ providers:
     asns: [62240]
     hq_country: GB
     locations: [{country: GB, city: London}, {country: NL, city: Amsterdam}, {country: DE, city: Frankfurt}, {country: US, city: New York}]
-    size: small
+    size: large
     popularity_ru: 2
     ip_type: dch
     trial: false
@@ -1463,7 +1206,7 @@ providers:
   - id: krystal
     name: Krystal
     website: https://krystal.io
-    asn_search: Krystal
+    asns: [12488]
     hq_country: GB
     locations: [{country: GB, city: London}]
     size: small
@@ -1509,6 +1252,7 @@ providers:
     name: OVHcloud
     website: https://www.ovhcloud.com
     asns: [16276]
+    aliases: ["OVH"]
     hq_country: FR
     locations: [{country: FR, city: Gravelines}, {country: FR, city: Strasbourg}, {country: DE, city: Limburg}, {country: PL, city: Warsaw}, {country: GB, city: London}, {country: CA, city: Beauharnois}, {country: US, city: Vint Hill}, {country: SG, city: Singapore}, {country: AU, city: Sydney}]
     size: hyperscale
@@ -1553,7 +1297,7 @@ providers:
   - id: pulseheberg
     name: PulseHeberg
     website: https://pulseheberg.com
-    asn_search: PulseHeberg
+    asns: [207879]
     hq_country: FR
     locations: [{country: FR, city: Marseille}]
     size: micro
@@ -1565,21 +1309,6 @@ providers:
     payment: [card, paypal]
     notes: Небольшой французский VPS-хостер в Марселе.
     tags: [local, budget]
-  - id: nucleus
-    name: Nucleus
-    website: https://www.nucleus.be
-    asn_search: Nucleus
-    hq_country: BE
-    locations: [{country: BE, city: Antwerp}]
-    size: small
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    payment: [invoice]
-    b2b_focus: true
-    notes: Бельгийский B2B-хостер.
-    tags: [local, b2b]
   # ───────────────────────────── Южная Европа ─────────────────────────────
   - id: dinahosting
     name: dinahosting
@@ -1599,7 +1328,7 @@ providers:
   - id: clouding
     name: Clouding.io
     website: https://clouding.io
-    asn_search: Clouding
+    asns: [49635]
     hq_country: ES
     locations: [{country: ES, city: Barcelona}]
     size: micro
@@ -1612,25 +1341,10 @@ providers:
     payment: [card, paypal]
     notes: Испанское облако с почасовой оплатой и стартовым кредитом.
     tags: [cloud, hourly, trial, local]
-  - id: arsys
-    name: Arsys
-    website: https://www.arsys.es
-    asn_search: Arsys
-    hq_country: ES
-    locations: [{country: ES, city: Logroño}]
-    size: medium
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card]
-    notes: Крупный испанский локальный хостер (группа IONOS).
-    tags: [local]
   - id: raiola
     name: Raiola Networks
     website: https://raiolanetworks.com
-    asn_search: Raiola
+    asns: [56958]
     hq_country: ES
     locations: [{country: ES, city: Madrid}]
     size: small
@@ -1645,7 +1359,8 @@ providers:
   - id: ptisp
     name: PTisp
     website: https://www.ptisp.pt
-    asn_search: PTisp
+    asns: [24768]
+    aliases: ["Almouroltec"]
     hq_country: PT
     locations: [{country: PT, city: Lisbon}]
     size: small
@@ -1660,7 +1375,7 @@ providers:
   - id: dominios-pt
     name: Dominios.pt
     website: https://www.dominios.pt
-    asn_search: Dominios.pt
+    asns: [33876]
     hq_country: PT
     locations: [{country: PT, city: Lisbon}]
     size: micro
@@ -1705,7 +1420,7 @@ providers:
   - id: keliweb
     name: Keliweb
     website: https://www.keliweb.it
-    asn_search: Keliweb
+    asns: [202675]
     hq_country: IT
     locations: [{country: IT, city: Milan}]
     size: micro
@@ -1720,7 +1435,8 @@ providers:
   - id: prometeus
     name: Prometeus / iwStack
     website: https://www.prometeus.net
-    asn_search: Prometeus
+    asns: [34971]
+    aliases: ["PDDA", "CDLAN"]
     hq_country: IT
     locations: [{country: IT, city: Milan}, {country: CH, city: Zurich}]
     size: micro
@@ -1765,25 +1481,10 @@ providers:
     payment: [card]
     notes: Крупный польский локальный хостер.
     tags: [local]
-  - id: e24cloud
-    name: e24cloud
-    website: https://www.e24cloud.com
-    asn_search: e24cloud
-    hq_country: PL
-    locations: [{country: PL, city: Poznań}]
-    size: small
-    popularity_ru: 1
-    ip_type: dch
-    trial: true
-    trial_note: Тестовый период/кредит для новых клиентов.
-    hourly: true
-    payment: [card, invoice]
-    notes: Польское облако (Beyond.pl) с почасовой оплатой.
-    tags: [cloud, hourly, trial, local]
   - id: hitme
     name: Hitme.pl
     website: https://hitme.pl
-    asn_search: Hitme
+    asns: [50840]
     hq_country: PL
     locations: [{country: PL, city: Warsaw}]
     size: micro
@@ -1798,7 +1499,7 @@ providers:
   - id: kylos
     name: Kylos
     website: https://kylos.pl
-    asn_search: Kylos
+    asns: [48505]
     hq_country: PL
     locations: [{country: PL, city: Łódź}]
     size: micro
@@ -1813,7 +1514,7 @@ providers:
   - id: atman
     name: ATMAN
     website: https://www.atman.pl
-    asn_search: ATMAN
+    asns: [15694, 57367, 24723]
     hq_country: PL
     locations: [{country: PL, city: Warsaw}]
     size: medium
@@ -1843,7 +1544,7 @@ providers:
   - id: evolink
     name: Evolink
     website: https://www.evolink.com
-    asn_search: Evolink
+    asns: [8262]
     hq_country: BG
     locations: [{country: BG, city: Sofia}]
     size: small
@@ -1858,7 +1559,7 @@ providers:
   - id: superhosting-bg
     name: SuperHosting.BG
     website: https://www.superhosting.bg
-    asn_search: SuperHosting
+    asns: [201200, 49699]
     hq_country: BG
     locations: [{country: BG, city: Sofia}]
     size: small
@@ -1873,7 +1574,7 @@ providers:
   - id: belcloud
     name: VPS.BG (Belcloud)
     website: https://vps.bg
-    asn_search: Belcloud
+    asns: [44901]
     hq_country: BG
     locations: [{country: BG, city: Sofia}]
     size: micro
@@ -1885,36 +1586,6 @@ providers:
     payment: [card, paypal, crypto]
     notes: Болгарский VPS-хостер с криптооплатой.
     tags: [crypto]
-  - id: icn-bg
-    name: ICN.Bg
-    website: https://www.icn.bg
-    asn_search: ICN.bg
-    hq_country: BG
-    locations: [{country: BG, city: Sofia}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card]
-    notes: Болгарский локальный хостер.
-    tags: [local]
-  - id: hostico
-    name: Hostico
-    website: https://hostico.ro
-    asn_search: Hostico
-    hq_country: RO
-    locations: [{country: RO, city: Bucharest}]
-    size: micro
-    popularity_ru: 1
-    ip_type: dch
-    trial: false
-    hourly: false
-    min_price_eur: 5
-    payment: [card, paypal]
-    notes: Румынский локальный хостер.
-    tags: [local]
   - id: voxility
     name: Voxility
     website: https://www.voxility.com
@@ -2113,7 +1784,7 @@ providers:
     asns: [54290]
     hq_country: US
     locations: [{country: US, city: Seattle}, {country: US, city: Dallas}, {country: NL, city: Amsterdam}]
-    size: small
+    size: large
     popularity_ru: 2
     ip_type: dch
     trial: false
@@ -2125,17 +1796,18 @@ providers:
   - id: racknerd
     name: RackNerd
     website: https://www.racknerd.com
-    asn_search: RackNerd
+    asns: [36352]
+    aliases: ["ColoCrossing", "HostPapa"]
     hq_country: US
     locations: [{country: US, city: Los Angeles}, {country: US, city: San Jose}, {country: US, city: New York}, {country: US, city: Chicago}, {country: NL, city: Amsterdam}]
-    size: small
+    size: large
     popularity_ru: 3
     ip_type: dch
     trial: false
     hourly: false
     min_price_eur: 1
     payment: [card, paypal, crypto]
-    notes: Бюджетный хостер (годовые промо-тарифы), популярен у RU-пользователей.
+    notes: Бюджетный хостер (годовые промо-тарифы), популярен у RU-пользователей. IP-пространство принадлежит ColoCrossing (AS36352).
     tags: [budget, crypto]
   - id: oracle
     name: Oracle Cloud
@@ -2172,7 +1844,7 @@ providers:
   - id: conoha
     name: ConoHa (GMO)
     website: https://www.conoha.jp
-    asn_search: GMO Internet
+    asns: [7506]
     hq_country: JP
     locations: [{country: JP, city: Tokyo}]
     size: medium
@@ -2187,7 +1859,7 @@ providers:
   - id: sakura
     name: Sakura Internet
     website: https://www.sakura.ad.jp
-    asn_search: SAKURA Internet
+    asns: [7684, 9370, 9371]
     hq_country: JP
     locations: [{country: JP, city: Tokyo}, {country: JP, city: Osaka}]
     size: medium

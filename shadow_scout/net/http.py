@@ -233,8 +233,9 @@ class HttpClient:
         per_minute: int | None = None,
         timeout: float | None = None,
         max_bytes: int = 64 * 1024 * 1024,
+        headers: dict[str, str] | None = None,
     ) -> str:
-        response = await self.request("GET", url, source=source, per_minute=per_minute, timeout=timeout)
+        response = await self.request("GET", url, source=source, per_minute=per_minute, timeout=timeout, headers=headers)
         if response.status_code >= 400:
             self.health.mark_fail(source, f"HTTP {response.status_code}")
             raise HttpError(f"HTTP {response.status_code} for {url}", response.status_code)

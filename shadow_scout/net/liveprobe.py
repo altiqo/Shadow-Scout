@@ -1,8 +1,9 @@
-"""Живые TCP-пробы с машины пользователя: достижимость адресов провайдера (полезно из РФ)."""
+"""Живые TCP/TLS-пробы с машины пользователя: достижимость адресов провайдера (полезно из РФ)."""
 
 from __future__ import annotations
 
 import asyncio
+import ssl
 from dataclasses import dataclass
 
 from shadow_scout.config import LiveProbeSettings
@@ -14,6 +15,17 @@ class ProbeOutcome:
     port: int
     result: str  # open | refused | timeout | unreachable
     latency_ms: float | None
+
+
+@dataclass
+class TlsOutcome:
+    ip: str
+    port: int
+    sni: str
+    ok: bool
+    latency_ms: float | None = None
+    version: str | None = None
+    error: str = ""  # timeout | reset | tls-error | refused | unreachable
 
 
 async def probe_one(ip: str, port: int, timeout: float) -> ProbeOutcome:
@@ -33,6 +45,40 @@ async def probe_one(ip: str, port: int, timeout: float) -> ProbeOutcome:
         return ProbeOutcome(ip, port, "refused", (loop.time() - start) * 1000)
     except OSError:
         return ProbeOutcome(ip, port, "unreachable", None)
+
+
+async def tls_probe(ip: str, port: int, sni: str, timeout: float) -> TlsOutcome:
+    """TLS-рукопожатие с заданным SNI: отличает «порт открыт» от «трафик проходит» (ТСПУ рвёт соединения по SNI/IP).
+
+    Сертификат не проверяется — важен сам факт завершённого рукопожатия.
+    """
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection(ip, port, ssl=context, server_hostname=sni), timeout=timeout)
+        version = None
+        ssl_object = writer.get_extra_info("ssl_object")
+        if ssl_object is not None:
+            version = ssl_object.version()
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+        return TlsOutcome(ip, port, sni, True, (loop.time() - start) * 1000, version)
+    except asyncio.TimeoutError:
+        return TlsOutcome(ip, port, sni, False, error="timeout")
+    except ConnectionRefusedError:
+        return TlsOutcome(ip, port, sni, False, error="refused")
+    except ConnectionResetError:
+        return TlsOutcome(ip, port, sni, False, error="reset")
+    except ssl.SSLError:
+        return TlsOutcome(ip, port, sni, False, error="tls-error")  # порт отвечает, но это не TLS-сервер
+    except OSError:
+        return TlsOutcome(ip, port, sni, False, error="unreachable")
 
 
 async def probe_many(ips: list[str], cfg: LiveProbeSettings, concurrency: int = 16) -> list[ProbeOutcome]:

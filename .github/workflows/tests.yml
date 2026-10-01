@@ -1,0 +1,48 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # понедельник, сверка базы с живыми данными
+
+jobs:
+  test:
+    if: github.event_name != 'schedule'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: "Tests (без сети, на мок-транспорте)"
+        run: pytest -q
+
+  # Сверка базы провайдеров с живыми данными (RIPEstat, PeeringDB, сайты). Раз в неделю и вручную: сеть нестабильна,
+  # поэтому на каждый push не запускается. Падает, если в ручной базе появились ASN, которые больше не анонсируются.
+  database:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - run: shadow-scout verify-db --source curated --level warn --json db-issues.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: db-issues
+          path: db-issues.json

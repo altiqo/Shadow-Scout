@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import webbrowser
@@ -24,9 +25,12 @@ from shadow_scout.providers import ProviderDB, load_countries
 from shadow_scout.runner import (
     do_export,
     load_last_result,
+    plan_search,
     run_check,
     run_discovery,
+    run_harvest,
     run_search,
+    run_verify,
     update_lists,
 )
 from shadow_scout.ui import views
@@ -74,6 +78,7 @@ class MenuApp:
         self.db = ProviderDB()
         self.countries = load_countries()
         self.last_result: SearchResult | None = None
+        self.last_ip_reports: list = []
         set_language(settings.general.language)
 
     # ───────────────────────── main loop ─────────────────────────
@@ -128,7 +133,9 @@ class MenuApp:
             hours = max(loaded) / 3600
             style = "ok" if hours <= self.settings.cache.blocklists_ttl_hours else "warn"
             status.append(f"  списки блокировок: {len(loaded)}/{len(ages)} загружены, самому старому {hours:.1f} ч", style=style)
-        status.append(f"   ·   провайдеров в базе: {len(self.db.all())}", style="muted")
+        providers = self.db.all()
+        from_catalog = sum(1 for p in providers if p.source == "catalog")
+        status.append(f"   ·   провайдеров в базе: {len(providers)} (ручных {len(providers) - from_catalog}, каталог {from_catalog})", style="muted")
         status.append(f"   ·   конфиг: {config_file()}", style="muted")
         console.print(status)
         console.print()
@@ -156,6 +163,9 @@ class MenuApp:
                 choices=[
                     Choice("Нужен бесплатный trial", "trial"),
                     Choice("Нужна почасовая оплата", "hourly"),
+                    Choice("Строго: trial/почасовая только подтверждённые (иначе «неизвестно» тоже подходит)", "strict"),
+                    Choice("Только провайдеры с подтверждённым VPS (без неподтверждённого автокаталога)", "verified"),
+                    Choice("Группировать по городам, а не по странам", "by_city"),
                     Choice("Исключить провайдеров со связями с РФ", "no_ru", checked=True),
                     Choice("Исключить крупные/гипермасштабные хостинги", "no_large", checked=True),
                     Choice("Выполнить живые TCP-пробы с этой машины (полезно из РФ)", "live", checked=self.settings.live_probe.enabled),
@@ -191,7 +201,7 @@ class MenuApp:
                 style=QS,
             )
         )
-        limit_raw = ask(questionary.text("Сколько провайдеров анализировать (максимум):", default=str(self.settings.general.results_limit), style=QS, validate=lambda v: v.strip().isdigit() or "введите целое число"))
+        per_loc_raw = ask(questionary.text("Сколько лучших провайдеров показывать на каждую локацию:", default=str(self.settings.general.per_location), style=QS, validate=lambda v: (v.strip().isdigit() and int(v) > 0) or "введите целое число > 0"))
 
         query = SearchQuery(
             countries=countries,
@@ -204,45 +214,48 @@ class MenuApp:
             max_risk=None if max_risk == "any" else max_risk,
             include_ru_ties="no_ru" not in opts,
             live_probe="live" in opts,
-            limit=int(limit_raw),
+            limit=self.settings.general.max_candidates,
+            per_location=int(per_loc_raw),
+            deep_per_location=self.settings.general.deep_per_location,
+            strict_flags="strict" in opts,
+            include_unverified="verified" not in opts,
+            group_by="city" if "by_city" in opts else "country",
         )
-        providers = self.db.filter(query)
-        if not providers:
-            console.print(Panel("[warn]Под эти фильтры не подходит ни один провайдер из базы. Ослабьте условия или добавьте провайдеров в базу / через discovery.[/warn]", border_style="yellow"))
+        plan = plan_search(self.db, query)
+        if not plan.candidates:
+            console.print(Panel("[warn]Под эти фильтры не подходит ни один провайдер из базы. Ослабьте условия, обновите каталог (База провайдеров → harvest) или добавьте провайдеров через discovery.[/warn]", border_style="yellow"))
             pause()
             return
-        providers = sorted(providers, key=lambda p: (p.popularity_ru, {"micro": 0, "small": 1, "medium": 2, "large": 3, "hyperscale": 4}[p.size], p.name))[: query.limit]
         console.print(f"[muted]Запрос:[/muted] {query.describe()}")
-        console.print(f"[muted]Кандидатов из базы:[/muted] [bold]{len(providers)}[/bold] — " + ", ".join(p.name for p in providers[:12]) + (" …" if len(providers) > 12 else ""))
+        console.print(views.plan_line(plan))
         if not ask(questionary.confirm("Запустить анализ?", default=True, style=QS)):
             return
-        result = run_search(self.settings, providers, query, title="Поиск VPS: " + (", ".join(countries) if countries else "все страны"))
-        if query.max_asn_ipv4:
-            kept = [r for r in result.reports if not r.total_ipv4 or r.total_ipv4 <= query.max_asn_ipv4]
-            dropped = len(result.reports) - len(kept)
-            result.reports = kept
-            if dropped:
-                console.print(f"[muted]Скрыто {dropped} провайдеров с сетью больше заданного размера.[/muted]")
+        result = run_search(self.settings, plan.candidates, query, title="Поиск VPS: " + (", ".join(countries) if countries else "все страны"), plan=plan)
         self.last_result = result
         self.show_result(result)
 
     # ───────────────────────── results ─────────────────────────
     def show_result(self, result: SearchResult) -> None:
+        full_table = not result.picks  # проверка одного провайдера/discovery: сразу общая таблица
         while True:
             console.clear()
             console.rule(f"[title]{result.title}[/title]")
             console.print(views.summary_line(result))
-            console.print(views.results_table(result))
+            console.print(views.results_table(result) if full_table else views.picks_view(result))
             console.print(views.sources_panel(result.sources))
             reports = result.sorted_reports()
             choices = [Choice("📤  Экспортировать отчёт (HTML / PDF / XLSX / …)", "export")]
+            if result.picks:
+                choices.append(Choice("📋  Общая таблица всех проанализированных" if not full_table else "📍  Лучшие по локациям", "toggle"))
             if reports:
                 choices.append(Choice("🔎  Подробный отчёт по провайдеру", "detail"))
             choices.append(Choice("↩   Назад в меню", "back"))
             action = ask(questionary.select("Действие:", choices=choices, style=QS))
             if action == "back":
                 return
-            if action == "export":
+            if action == "toggle":
+                full_table = not full_table
+            elif action == "export":
                 self.export_dialog(result)
             elif action == "detail":
                 pick = ask(
@@ -281,11 +294,19 @@ class MenuApp:
         mode = ask(
             questionary.select(
                 "Что проверяем?",
-                choices=[Choice("Провайдера из базы", "db"), Choice("Произвольную цель: ASN (AS42708), IP или домен", "target"), Choice("↩ назад", "back")],
+                choices=[
+                    Choice("Провайдера из базы", "db"),
+                    Choice("Произвольную цель: ASN (AS42708), IP или домен", "target"),
+                    Choice("Выданный хостером IP — после аренды, до оплаты (списки, подсеть, достижимость)", "ip"),
+                    Choice("↩ назад", "back"),
+                ],
                 style=QS,
             )
         )
         if mode == "back":
+            return
+        if mode == "ip":
+            self.do_verify_ip()
             return
         live = ask(questionary.confirm("Выполнить живые TCP-пробы с этой машины?", default=self.settings.live_probe.enabled, style=QS))
         if mode == "db":
@@ -306,6 +327,28 @@ class MenuApp:
         console.print(views.sources_panel(result.sources))
         if ask(questionary.confirm("Экспортировать отчёт?", default=False, style=QS)):
             self.export_dialog(result)
+
+    def do_verify_ip(self) -> None:
+        console.print(Panel(
+            "Проверяется сам адрес, а не только провайдер: он и его подсеть в списках блокировок, cheburcheck.ru, "
+            "классификация ip-api и (по желанию) достижимость с этой машины. Делайте это сразу после выдачи сервера — до оплаты.",
+            border_style="#243152",
+        ))
+        raw = ask(questionary.text("IP-адрес (можно несколько через пробел или запятую):", style=QS, validate=lambda v: bool(v.strip()) or "введите адрес"))
+        ips = [x for x in re.split(r"[\s,;]+", raw.strip()) if x]
+        live = ask(questionary.confirm("Проверить достижимость с этой машины (TCP-пробы на 22 и 443)?", default=True, style=QS))
+        sni = ask(questionary.text("SNI для проверки TLS-рукопожатия (напр. www.microsoft.com; пусто — пропустить):", default="", style=QS)).strip() or None
+        try:
+            reports = run_verify(self.settings, ips, live=live or sni is not None, sni=sni)
+        except ValueError as exc:
+            console.print(f"[bad]{exc}[/bad]")
+            pause()
+            return
+        self.last_ip_reports = reports
+        console.clear()
+        for report in reports:
+            console.print(views.ip_report_panel(report))
+        pause()
 
     # ───────────────────────── discovery ─────────────────────────
     def do_discover(self) -> None:
@@ -350,7 +393,8 @@ class MenuApp:
             pause()
             return
         providers = [c.to_provider() for c in chosen]
-        query = SearchQuery(countries=[country], include_ru_ties=True)
+        # кандидатов выбирали вручную — проверяем полностью всех, а не только лучших на локацию
+        query = SearchQuery(countries=[country], include_ru_ties=True, per_location=len(providers), deep_per_location=len(providers))
         result = run_search(self.settings, providers, query, title=f"Discovery {self.countries.name(country)}")
         self.last_result = result
         self.show_result(result)
@@ -365,7 +409,9 @@ class MenuApp:
                     "Действие:",
                     choices=[
                         Choice("Показать всех", "list"),
+                        Choice("Сводка по странам (сколько провайдеров на локацию)", "stats"),
                         Choice("Фильтр по стране", "country"),
+                        Choice("🌍  Пополнить каталог из PeeringDB / RIPEstat (harvest)", "harvest"),
                         Choice("Добавить провайдера", "add"),
                         Choice("Включить / отключить провайдера", "toggle"),
                         Choice("Удалить пользовательского провайдера", "remove"),
@@ -380,6 +426,11 @@ class MenuApp:
             if action == "list":
                 console.print(views.providers_table(self.db, self.db.all(include_disabled=True)))
                 pause()
+            elif action == "stats":
+                console.print(views.country_stats_table(self.db))
+                pause()
+            elif action == "harvest":
+                self.do_harvest()
             elif action == "country":
                 codes = self.ask_countries(preselect_low=False)
                 providers = [p for p in self.db.all(include_disabled=True) if not codes or set(codes) & set(p.countries)]
@@ -410,6 +461,22 @@ class MenuApp:
                     self.db.save_user()
                 open_path(user_providers_file())
                 pause()
+
+    def do_harvest(self) -> None:
+        console.print(Panel(
+            "Каталог собирается из открытых данных: PeeringDB (сети, организации, присутствие в ДЦ), таблицы имён ASN, RIPEstat и сайтов провайдеров "
+            "(проверяется, продают ли они VPS). Занимает несколько минут и качает ~25 МБ; результат сохраняется в пользовательский каталог "
+            "и подмешивается в поиск. Сети, уже попавшие в списки блокировок, в каталог не берутся.",
+            border_style="#243152",
+        ))
+        codes = self.ask_countries(preselect_low=False)
+        web = ask(questionary.confirm("Проверять сайты провайдеров (подтверждает VPS, но дольше)?", default=True, style=QS))
+        refresh = ask(questionary.confirm("Заново скачать выгрузку PeeringDB (иначе — из кеша, если он свежий)?", default=False, style=QS))
+        for line in run_harvest(self.settings, countries=codes, web=web, refresh=refresh):
+            console.print("  " + line)
+        self.db.reload()
+        console.print(f"[ok]В базе теперь {len(self.db.all())} провайдеров[/ok]")
+        pause()
 
     def add_provider_form(self) -> None:
         console.print("[muted]Заполните карточку провайдера. Пустые поля — значения по умолчанию.[/muted]")
@@ -495,7 +562,9 @@ class MenuApp:
         set_language(g.language)
         g.export_dir = ask(questionary.text("Папка экспорта:", default=g.export_dir, style=QS))
         g.default_exports = ask(questionary.checkbox("Форматы экспорта по умолчанию:", choices=[Choice(f, f, checked=f in g.default_exports) for f in FORMATS], style=QS))
-        g.results_limit = int(ask(questionary.text("Лимит провайдеров в поиске:", default=str(g.results_limit), style=QS, validate=lambda v: v.strip().isdigit() or "число")))
+        g.per_location = int(ask(questionary.text("Сколько лучших провайдеров показывать на каждую локацию:", default=str(g.per_location), style=QS, validate=lambda v: v.strip().isdigit() and int(v) > 0 or "число > 0")))
+        g.deep_per_location = int(ask(questionary.text("У скольких лучших на локацию делать полную проверку (0 — только быстрая):", default=str(g.deep_per_location), style=QS, validate=lambda v: v.strip().isdigit() or "число")))
+        g.max_candidates = int(ask(questionary.text("Потолок числа анализируемых провайдеров за поиск:", default=str(g.max_candidates), style=QS, validate=lambda v: v.strip().isdigit() and int(v) > 0 or "число > 0")))
         g.show_banner = ask(questionary.confirm("Показывать баннер?", default=g.show_banner, style=QS))
 
     def settings_network(self) -> None:
