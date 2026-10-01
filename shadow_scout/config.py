@@ -14,7 +14,9 @@ class GeneralSettings(BaseModel):
     language: str = "ru"
     export_dir: str = str(default_reports_dir())
     default_exports: list[str] = Field(default_factory=lambda: ["html", "pdf"])
-    results_limit: int = 25
+    per_location: int = 5  # сколько лучших провайдеров показывать на каждую локацию
+    deep_per_location: int = 3  # у скольких лучших на локацию делать полную проверку (cheburcheck и др.)
+    max_candidates: int = 200  # общий потолок числа анализируемых провайдеров за один поиск
     auto_update_lists_days: int = 1
     show_banner: bool = True
 

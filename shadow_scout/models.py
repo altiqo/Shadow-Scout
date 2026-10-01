@@ -15,6 +15,19 @@ Verdict = Literal["low", "moderate", "high", "critical", "unknown"]
 SIZE_ORDER: dict[str, int] = {"micro": 0, "small": 1, "medium": 2, "large": 3, "hyperscale": 4}
 
 
+_SECOND_LEVEL_ZONES = {"co", "com", "org", "net", "ac", "edu", "gov", "ne", "or"}
+
+
+def registrable_domain(host: str | None) -> str | None:
+    """Домен второго уровня: staff.aruba.it → aruba.it, www.host.co.uk → host.co.uk. По нему сравниваем сайты провайдеров."""
+    if not host:
+        return None
+    parts = host.lower().strip(".").split(".")
+    if len(parts) >= 3 and parts[-2] in _SECOND_LEVEL_ZONES and len(parts[-1]) == 2:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:]) if len(parts) >= 2 else host.lower()
+
+
 def _country_code(value: object) -> str:
     # YAML 1.1 превращает NO/ON/OFF/YES в bool — восстанавливаем код Норвегии
     if value is False:
@@ -43,6 +56,7 @@ class Provider(BaseModel):
     website: str | None = None
     asns: list[int] = Field(default_factory=list)
     asn_search: str | None = None
+    aliases: list[str] = Field(default_factory=list)  # прежние/другие названия (для сверки с держателем ASN)
     hq_country: str = "ZZ"
     locations: list[Location] = Field(default_factory=list)
     size: ProviderSize = "small"
@@ -58,8 +72,13 @@ class Provider(BaseModel):
     b2b_focus: bool = False
     notes: str = ""
     tags: list[str] = Field(default_factory=list)
-    source: str = "bundled"
+    source: str = "bundled"  # bundled | catalog | user | discovered | adhoc
     enabled: bool = True
+    # продаёт ли VPS/облачные серверы: True — подтверждено, None — не проверено, False — нет
+    vps: bool | None = None
+    # снимок PeeringDB на момент сборки каталога (избавляет от запросов при анализе)
+    pdb_types: list[str] = Field(default_factory=list)
+    pdb_traffic: str | None = None
 
     @field_validator("hq_country", mode="before")
     @classmethod
@@ -81,6 +100,19 @@ class Provider(BaseModel):
             seen.append(self.hq_country)
         return seen
 
+    @property
+    def location_countries(self) -> list[str]:
+        """Страны, где можно арендовать сервер: по списку локаций; без локаций — страна HQ."""
+        seen = list(dict.fromkeys(loc.country for loc in self.locations))
+        if not seen and self.hq_country != "ZZ":
+            seen.append(self.hq_country)
+        return seen
+
+    @property
+    def hints_only(self) -> bool:
+        """Условия (trial / почасовая) определены автоматически и не проверялись вручную."""
+        return self.source == "catalog"
+
     def locations_in(self, countries: list[str]) -> list[Location]:
         wanted = {c.upper() for c in countries}
         return [loc for loc in self.locations if loc.country in wanted]
@@ -90,6 +122,10 @@ class Provider(BaseModel):
             return None
         host = self.website.split("://", 1)[-1].split("/", 1)[0]
         return host.lower().removeprefix("www.")
+
+    def site_key(self) -> str | None:
+        """Регистрируемый домен сайта (без поддоменов) — ключ для поиска дублей."""
+        return registrable_domain(self.website_domain())
 
 
 class SignalStatus(str, Enum):
@@ -150,6 +186,8 @@ class RiskReport(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     duration_seconds: float = 0.0
     matched_locations: list[Location] = Field(default_factory=list)
+    # quick — только локальные данные (префиксы, списки блокировок); full — плюс cheburcheck, ip-api, пробы
+    depth: Literal["quick", "full"] = "full"
 
     def signal(self, key: str) -> Signal | None:
         for s in self.signals:
@@ -182,18 +220,26 @@ class SearchQuery(BaseModel):
     max_risk: Verdict | None = None  # отсечь всё хуже этого вердикта
     include_ru_ties: bool = False
     live_probe: bool = False
-    limit: int = 25
+    limit: int = 200  # общий потолок числа анализируемых провайдеров (делится между локациями поровну)
     tags: list[str] = Field(default_factory=list)
     provider_ids: list[str] = Field(default_factory=list)
+    # ── отбор по локациям ──
+    per_location: int = 5  # сколько провайдеров показать на каждую локацию
+    deep_per_location: int = 3  # у скольких лучших на локацию делать полную проверку (cheburcheck и др.); 0 — только быстрая
+    group_by: Literal["country", "city"] = "country"
+    max_repeat: int = 1  # в скольких локациях один провайдер может быть в «лучших» (0 — без ограничения)
+    strict_flags: bool = False  # trial/почасовая: только подтверждённые (иначе «неизвестно» тоже подходит)
+    include_unverified: bool = True  # провайдеры из каталога без подтверждённого VPS
+    use_catalog: bool = True  # автоматически собранный каталог (PeeringDB) помимо ручной базы
 
     def describe(self) -> str:
         parts: list[str] = []
         if self.countries:
             parts.append("страны: " + ", ".join(self.countries))
         if self.require_trial:
-            parts.append("нужен trial")
+            parts.append("нужен trial" + (" (строго)" if self.strict_flags else ""))
         if self.require_hourly:
-            parts.append("почасовая оплата")
+            parts.append("почасовая оплата" + (" (строго)" if self.strict_flags else ""))
         if self.max_price_eur is not None:
             parts.append(f"≤ {self.max_price_eur:g} €/мес")
         if self.ip_type:
@@ -213,6 +259,20 @@ class SourceStatus(BaseModel):
     detail: str = ""
 
 
+class LocationPick(BaseModel):
+    """Лучшие провайдеры для одной локации (страна или страна/город)."""
+
+    country: str
+    city: str | None = None
+    provider_ids: list[str] = Field(default_factory=list)  # по убыванию «оценки подбора»
+    candidates: int = 0  # сколько провайдеров из базы подошло под локацию и фильтры
+    analyzed: int = 0  # сколько из них реально проанализировано
+
+    @property
+    def key(self) -> str:
+        return f"{self.country}/{self.city}" if self.city else self.country
+
+
 class SearchResult(BaseModel):
     query: SearchQuery
     reports: list[RiskReport] = Field(default_factory=list)
@@ -220,6 +280,15 @@ class SearchResult(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     duration_seconds: float = 0.0
     title: str = "Отчёт Shadow Scout"
+    picks: list[LocationPick] = Field(default_factory=list)
+    candidates_total: int = 0  # сколько провайдеров из базы подошло под фильтры
+    candidates_analyzed: int = 0
+
+    def report_by_id(self, provider_id: str) -> RiskReport | None:
+        for r in self.reports:
+            if r.provider.id == provider_id:
+                return r
+        return None
 
     def sorted_reports(self) -> list[RiskReport]:
         # Провайдеры без данных (unknown) — всегда внизу, остальные по выживаемости и уверенности

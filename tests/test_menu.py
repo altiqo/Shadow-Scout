@@ -138,3 +138,31 @@ def test_update_and_export_last(scripted, settings, monkeypatch, tmp_path):
     app.last_result = SearchResult(query=SearchQuery(), reports=[], title="пусто")
     app.do_export()
     assert (tmp_path / "x").exists()
+
+
+def test_verify_ip_from_menu(scripted, settings):
+    scripted(["ip", "95.217.165.190, 46.21.96.10", False, ""])  # режим, адреса, без проб, без SNI
+    app = menu_mod.MenuApp(settings)
+    app.do_check()
+    assert [r.verdict for r in app.last_ip_reports] == ["blocked", "ok"]
+
+
+def test_verify_ip_from_menu_rejects_private_address(scripted, settings):
+    scripted(["ip", "192.168.0.1", False, ""])
+    app = menu_mod.MenuApp(settings)
+    app.do_check()  # понятное сообщение, без исключения
+    assert app.last_ip_reports == []
+
+
+def test_db_stats_and_harvest_entries_in_menu(scripted, settings, tmp_path, monkeypatch):
+    calls = {}
+
+    def fake_harvest(settings_, countries=None, web=True, refresh=False, **kw):
+        calls.update(countries=countries, web=web, refresh=refresh)
+        return ["Каталог: 0 провайдеров"]
+
+    monkeypatch.setattr(menu_mod, "run_harvest", fake_harvest)
+    scripted(["stats", "harvest", ["SE", "HR"], False, True, "back"])
+    app = menu_mod.MenuApp(settings)
+    app.do_db()
+    assert calls == {"countries": ["SE", "HR"], "web": False, "refresh": True}

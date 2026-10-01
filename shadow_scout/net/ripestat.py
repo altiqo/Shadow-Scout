@@ -56,6 +56,11 @@ class RipeStatClient:
             "block": data.get("block") or {},
         }
 
+    async def abuse_contacts(self, asn: int) -> list[str]:
+        """Почтовые адреса abuse-контактов ASN (по домену можно угадать сайт оператора)."""
+        data = await self._call("abuse-contact-finder", f"AS{asn}")
+        return [c for c in data.get("abuse_contacts", []) if isinstance(c, str) and "@" in c]
+
     async def network_info(self, ip: str) -> dict[str, Any]:
         data = await self._call("network-info", ip)
         asns = [int(a) for a in data.get("asns", []) if str(a).isdigit()]

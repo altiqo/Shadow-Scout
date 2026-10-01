@@ -22,7 +22,15 @@ from reportlab.platypus import (
 )
 
 from shadow_scout import __version__
-from shadow_scout.export.common import fmt_int, summary_counts, yes_no
+from shadow_scout.export.common import (
+    PICK_COLUMNS,
+    fmt_int,
+    holder_label,
+    pick_rows,
+    picked_reports,
+    summary_counts,
+    yes_no,
+)
 from shadow_scout.models import VERDICT_COLORS, VERDICT_LABELS_RU, RiskReport, SearchResult
 from shadow_scout.paths import FONTS_DIR
 from shadow_scout.providers import load_countries
@@ -53,6 +61,7 @@ def _styles() -> dict[str, ParagraphStyle]:
         "small": ParagraphStyle("sm", parent=base["Normal"], fontName=_FONT, fontSize=7.5, leading=9.5),
         "cell": ParagraphStyle("c", parent=base["Normal"], fontName=_FONT, fontSize=7.5, leading=9),
         "cellb": ParagraphStyle("cb", parent=base["Normal"], fontName=_FONT_BOLD, fontSize=7.5, leading=9),
+        "cellh": ParagraphStyle("ch", parent=base["Normal"], fontName=_FONT_BOLD, fontSize=7.5, leading=9, textColor=colors.white),
         "foot": ParagraphStyle("f", parent=base["Normal"], fontName=_FONT, fontSize=7, textColor=colors.HexColor("#777777")),
     }
 
@@ -65,11 +74,43 @@ def _verdict_color(verdict: str) -> colors.Color:
     return colors.HexColor(VERDICT_COLORS.get(verdict, VERDICT_COLORS["unknown"]))
 
 
-def _summary_table(result: SearchResult, st: dict[str, ParagraphStyle]) -> Table:
+def _picks_table(result: SearchResult, st: dict[str, ParagraphStyle]) -> Table | None:
+    """Лучшие по локациям: одна таблица, локации — строки-заголовки."""
+    rows = pick_rows(result)
+    if not rows:
+        return None
+    keys = ["rank", "provider", "cities", "asns", "ipv4", "blocked_share", "trial", "hourly", "price", "survivability", "verdict", "depth"]
+    titles = dict(PICK_COLUMNS)
+    data = [[Paragraph(titles[k], st["cellh"]) for k in keys]]
+    spans: list[int] = []
+    current = None
+    for row in rows:
+        if row["location"] != current:
+            current = row["location"]
+            spans.append(len(data))
+            data.append([Paragraph(f"<b>{_esc(current)}</b>", st["cell"])] + [""] * (len(keys) - 1))
+        data.append([Paragraph(_esc(row[k]), st["cellb"] if k == "provider" else st["cell"]) for k in keys])
+    widths = [8, 50, 38, 34, 20, 18, 14, 14, 12, 16, 32, 16]
+    table = Table(data, colWidths=[w * mm for w in widths], repeatRows=1)
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#c7ccd6")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]
+    for idx in spans:
+        style += [("SPAN", (0, idx), (-1, idx)), ("BACKGROUND", (0, idx), (-1, idx), colors.HexColor("#dbe4ff"))]
+    table.setStyle(TableStyle(style))
+    return table
+
+
+def _summary_table(result: SearchResult, st: dict[str, ParagraphStyle], limit: int | None = None) -> Table:
     countries = load_countries()
     head = ["#", "Провайдер", "Страны", "ASN", "IPv4", "В списках", "Тип", "Trial", "Почас.", "от €", "Выжив.", "Вердикт", "Увер."]
-    data = [[Paragraph(h, st["cellb"]) for h in head]]
+    data = [[Paragraph(h, st["cellh"]) for h in head]]
     reports = result.sorted_reports()
+    if limit:
+        reports = reports[:limit]
     for rank, r in enumerate(reports, start=1):
         p = r.provider
         locs = r.matched_locations or p.locations
@@ -82,14 +123,14 @@ def _summary_table(result: SearchResult, st: dict[str, ParagraphStyle]) -> Table
             Paragraph(fmt_int(r.total_ipv4) if r.total_ipv4 else "—", st["cell"]),
             Paragraph(f"{r.blocked_share*100:.2f}%" if r.total_ipv4 else "—", st["cell"]),
             Paragraph(p.ip_type.upper(), st["cell"]),
-            Paragraph(yes_no(p.trial), st["cell"]),
-            Paragraph(yes_no(p.hourly), st["cell"]),
+            Paragraph(yes_no(p.trial, p.hints_only), st["cell"]),
+            Paragraph(yes_no(p.hourly, p.hints_only), st["cell"]),
             Paragraph(f"{p.min_price_eur:g}" if p.min_price_eur is not None else "—", st["cell"]),
             Paragraph(f"<b>{r.survivability:.0f}</b>", st["cell"]),
             Paragraph(VERDICT_LABELS_RU.get(r.verdict, r.verdict), st["cellb"]),
             Paragraph(f"{r.confidence*100:.0f}%", st["cell"]),
         ])
-    widths = [8, 40, 42, 24, 18, 18, 11, 12, 15, 11, 14, 30, 14]
+    widths = [8, 40, 42, 24, 18, 18, 15, 12, 15, 11, 14, 30, 14]
     table = Table(data, colWidths=[w * mm for w in widths], repeatRows=1)
     style = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
@@ -124,12 +165,12 @@ def _provider_block(rank: int, r: RiskReport, st: dict[str, ParagraphStyle]) -> 
     items.append(head)
     facts = [
         f"Сайт: {_esc(p.website or '—')} · Локации: {_esc(loc_text)}",
-        f"Тип IP (база): {p.ip_type.upper()} · размер: {p.size} · популярность в RU: {p.popularity_ru}/5 · Trial: {yes_no(p.trial)} · почасовая: {yes_no(p.hourly)} · от {f'{p.min_price_eur:g} €' if p.min_price_eur is not None else '—'} · оплата: {_esc(', '.join(p.payment) or '—')}",
+        f"Тип IP (база): {p.ip_type.upper()} · размер: {p.size} · популярность в RU: {p.popularity_ru}/5 · Trial: {yes_no(p.trial, p.hints_only)} · почасовая: {yes_no(p.hourly, p.hints_only)} · от {f'{p.min_price_eur:g} €' if p.min_price_eur is not None else '—'} · оплата: {_esc(', '.join(p.payment) or '—')}",
     ]
     if p.notes:
         facts.append(f"Примечание: {_esc(p.notes)}")
     for a in r.asns:
-        line = f"AS{a.asn} — {_esc(a.holder or '?')}: IPv4 {fmt_int(a.ipv4_count)}, префиксов {len(a.prefixes_v4)}, в списках {a.blocked_share:.2%}"
+        line = f"AS{a.asn} — {_esc(holder_label(r, a.holder))}: IPv4 {fmt_int(a.ipv4_count)}, префиксов {len(a.prefixes_v4)}, в списках {a.blocked_share:.2%}"
         if a.peeringdb:
             line += f"; PeeringDB: {_esc(', '.join(a.peeringdb.get('info_types') or []) or '—')}, трафик {_esc(a.peeringdb.get('info_traffic') or '—')}"
         if a.blocked_prefixes:
@@ -189,13 +230,21 @@ def write_pdf(result: SearchResult, path: Path) -> None:
             f"низкий {counts['low']} / умеренный {counts['moderate']} / высокий {counts['high']} / критический {counts['critical']} / нет данных {counts['unknown']}",
             st["sub"],
         ),
-        _summary_table(result, st),
+    ]
+    picks = _picks_table(result, st)
+    if picks is not None:
+        story += [Paragraph("Лучшие по локациям", st["h2"]), picks, Spacer(1, 6), PageBreak()]
+    overall_limit = 60 if picks is not None else None
+    story += [
+        Paragraph("Все проанализированные провайдеры" + (f" (первые {overall_limit} по выживаемости)" if overall_limit and len(result.reports) > overall_limit else ""), st["h2"]),
+        _summary_table(result, st, overall_limit),
         Spacer(1, 6),
         Paragraph("Выживаемость = 100 − риск. Оценка вероятностная: чистый IP не защищает от DPI-блокировок протоколов. Перед оплатой проверьте выданный IP на cheburcheck.ru.", st["small"]),
         PageBreak(),
-        Paragraph("Подробности по провайдерам", st["h2"]),
+        Paragraph("Подробности по провайдерам" + (" (только вошедшие в «лучшие по локациям»)" if picks is not None else ""), st["h2"]),
     ]
-    for rank, r in enumerate(result.sorted_reports(), start=1):
+    details = picked_reports(result) if picks is not None else result.sorted_reports()
+    for rank, r in enumerate(details, start=1):
         story.extend(_provider_block(rank, r, st))
     story.append(Paragraph("Источники данных", st["h2"]))
     for s in result.sources:

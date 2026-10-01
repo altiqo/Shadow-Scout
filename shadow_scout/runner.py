@@ -7,6 +7,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+from shadow_scout import selection
 from shadow_scout.analysis.discovery import Candidate, DiscoveryEngine, DiscoveryOptions
 from shadow_scout.analysis.engine import AnalysisEngine, ProgressHooks, Services
 from shadow_scout.config import Settings
@@ -31,21 +32,31 @@ async def prepare(services: Services, force_lists: bool = False, quiet: bool = F
         await services.ensure_blocklists(force=force_lists, progress=step.update)
 
 
-async def _run_search_async(services: Services, providers: list[Provider], query: SearchQuery, title: str, quiet: bool) -> SearchResult:
+async def _run_search_async(
+    services: Services, providers: list[Provider], query: SearchQuery, title: str, quiet: bool, plan: selection.Plan | None = None
+) -> SearchResult:
     if quiet:
         engine = AnalysisEngine(services, ProgressHooks())
-        return await engine.run_search(providers, query, title)
+        return await engine.run_search(providers, query, title, plan=plan)
     with SearchProgress(len(providers)) as progress:
         engine = AnalysisEngine(services, progress.hooks())
-        return await engine.run_search(providers, query, title)
+        return await engine.run_search(providers, query, title, plan=plan)
 
 
-def run_search(settings: Settings, providers: list[Provider], query: SearchQuery, title: str = "Поиск VPS", quiet: bool = False, force_lists: bool = False) -> SearchResult:
+def run_search(
+    settings: Settings,
+    providers: list[Provider],
+    query: SearchQuery,
+    title: str = "Поиск VPS",
+    quiet: bool = False,
+    force_lists: bool = False,
+    plan: selection.Plan | None = None,
+) -> SearchResult:
     async def main() -> SearchResult:
         services = build_services(settings)
         try:
             await prepare(services, force_lists=force_lists, quiet=quiet)
-            result = await _run_search_async(services, providers, query, title, quiet)
+            result = await _run_search_async(services, providers, query, title, quiet, plan)
         finally:
             await services.http.close()
         return result
@@ -129,6 +140,96 @@ def update_lists(settings: Settings) -> list[str]:
     return asyncio.run(main())
 
 
+def run_verify(
+    settings: Settings,
+    ips: list[str],
+    live: bool = False,
+    ports: list[int] | None = None,
+    sni: str | None = None,
+    quiet: bool = False,
+) -> list:
+    """Проверяет конкретные IP-адреса (после выдачи сервера): списки, подсеть, cheburcheck, достижимость."""
+    from shadow_scout.analysis.verify import verify_ip
+
+    async def main() -> list:
+        services = build_services(settings)
+        try:
+            await prepare(services, quiet=quiet)
+            return [await verify_ip(services, ip, ports=ports, live=live, sni=sni, timeout=settings.live_probe.timeout_seconds + 1) for ip in ips]
+        finally:
+            await services.http.close()
+
+    return asyncio.run(main())
+
+
+def run_dbcheck(settings: Settings, providers: list[Provider], web: bool = True, quiet: bool = False) -> list:
+    """Сверяет записи базы с живыми данными (ASN, держатель, размер, сайт, условия) и возвращает найденные проблемы."""
+    from shadow_scout.analysis.dbcheck import check_database
+
+    async def main() -> list:
+        services = build_services(settings)
+        try:
+            await services.http.start()
+            if quiet:
+                return await check_database(services, providers, web=web)
+            with StepProgress("Проверка базы…") as step:
+                return await check_database(services, providers, web=web, progress=lambda done, total: step.update(f"Проверка базы: {done}/{total}"))
+        finally:
+            await services.http.close()
+
+    return asyncio.run(main())
+
+
+def run_harvest(
+    settings: Settings,
+    countries: list[str] | None = None,
+    web: bool = True,
+    blocklists: bool = True,
+    refresh: bool = False,
+    bundled: bool = False,
+    out: Path | None = None,
+    quiet: bool = False,
+) -> list[str]:
+    """Собирает каталог провайдеров (PeeringDB + имена ASN + сайты) и сохраняет его; возвращает строки сводки."""
+    from collections import Counter
+
+    from shadow_scout.harvest.build import CatalogOverrides, HarvestOptions, harvest
+    from shadow_scout.harvest.catalog_io import CATALOG_FILE, user_catalog_file, write_catalog
+    from shadow_scout.harvest.classify import site_key
+
+    async def main() -> list[str]:
+        services = build_services(settings)
+        try:
+            await services.http.start()
+            manual = ProviderDB(include_catalog=False).all(include_disabled=True)
+            options = HarvestOptions(
+                countries=countries or [], web_scan=web, check_blocklists=blocklists, force_dump=refresh,
+                exclude_asns={a for p in manual for a in p.asns}, exclude_ids={p.id for p in manual},
+                exclude_domains={d for p in manual if (d := site_key(p.website))},
+                overrides=CatalogOverrides.load(),
+            )
+            if quiet:
+                result = await harvest(services, options)
+            else:
+                with StepProgress("Сбор каталога…") as step:
+                    result = await harvest(
+                        services, options, log=step.update,
+                        web_progress=lambda done, total: step.update(f"Проверка сайтов: {done}/{total}"),
+                    )
+        finally:
+            await services.http.close()
+        path = write_catalog(result.providers, out or (CATALOG_FILE if bundled else user_catalog_file()))
+        by_country = Counter(p.hq_country for p in result.providers)
+        lines = [f"Каталог: {len(result.providers)} провайдеров → {path}"]
+        lines.append(f"Подтверждён VPS на сайте: {result.stats['vps_confirmed']}, не подтверждён: {result.stats['not_confirmed']}")
+        lines.append("Страны: " + ", ".join(f"{cc} {n}" for cc, n in by_country.most_common(25)))
+        dropped = ", ".join(f"{k.removeprefix('drop:')} {v}" for k, v in sorted(result.stats.items()) if k.startswith("drop:"))
+        lines.append(f"Отсеяно: {dropped}")
+        return lines
+
+    return asyncio.run(main())
+
+
 def save_last_result(result: SearchResult) -> None:
     try:
         last_result_file().write_text(result.model_dump_json(indent=None), encoding="utf-8")
@@ -154,6 +255,11 @@ def do_export(result: SearchResult, formats: list[str], directory: Path | None, 
 
 def select_providers(db: ProviderDB, query: SearchQuery) -> list[Provider]:
     return db.filter(query)
+
+
+def plan_search(db: ProviderDB, query: SearchQuery) -> selection.Plan:
+    """Фильтры базы → план кандидатов: лучшие на каждую локацию, а не первые по алфавиту."""
+    return selection.plan_candidates(db.filter(query), query)
 
 
 def report_to_result(report: RiskReport, title: str = "Проверка") -> SearchResult:

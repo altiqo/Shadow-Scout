@@ -57,6 +57,44 @@ countries:
   IR: {name_ru: Иран, name_en: Iran, region: Ближний Восток, radar: hostile}
   CN: {name_ru: Китай, name_en: China, region: Азия, radar: hostile}
   BZ: {name_ru: Белиз, name_en: Belize, region: Центральная Америка, radar: elevated}
+  # ── Добавлено: Балканы и микрогосударства (там много небольших локальных хостеров) ──
+  MT: {name_ru: Мальта, name_en: Malta, region: Южная Европа, radar: medium}
+  LI: {name_ru: Лихтенштейн, name_en: Liechtenstein, region: Центральная Европа, radar: low}
+  MC: {name_ru: Монако, name_en: Monaco, region: Западная Европа, radar: low}
+  IM: {name_ru: Остров Мэн, name_en: Isle of Man, region: Западная Европа, radar: medium}
+  JE: {name_ru: Джерси, name_en: Jersey, region: Западная Европа, radar: medium}
+  GG: {name_ru: Гернси, name_en: Guernsey, region: Западная Европа, radar: medium}
+  GI: {name_ru: Гибралтар, name_en: Gibraltar, region: Южная Европа, radar: medium}
+  BA: {name_ru: Босния и Герцеговина, name_en: Bosnia and Herzegovina, region: Юго-Восточная Европа, radar: medium}
+  ME: {name_ru: Черногория, name_en: Montenegro, region: Юго-Восточная Европа, radar: medium}
+  MK: {name_ru: Северная Македония, name_en: North Macedonia, region: Юго-Восточная Европа, radar: medium}
+  AL: {name_ru: Албания, name_en: Albania, region: Юго-Восточная Европа, radar: medium}
+  XK: {name_ru: Косово, name_en: Kosovo, region: Юго-Восточная Европа, radar: medium}
+  # ── Добавлено: Азия, Океания, Америка, Африка, Ближний Восток ──
+  TW: {name_ru: Тайвань, name_en: Taiwan, region: Азия, radar: medium}
+  MY: {name_ru: Малайзия, name_en: Malaysia, region: Азия, radar: medium}
+  TH: {name_ru: Таиланд, name_en: Thailand, region: Азия, radar: medium}
+  ID: {name_ru: Индонезия, name_en: Indonesia, region: Азия, radar: medium}
+  VN: {name_ru: Вьетнам, name_en: Vietnam, region: Азия, radar: elevated}
+  PH: {name_ru: Филиппины, name_en: Philippines, region: Азия, radar: medium}
+  IN: {name_ru: Индия, name_en: India, region: Азия, radar: medium}
+  NZ: {name_ru: Новая Зеландия, name_en: New Zealand, region: Океания, radar: medium}
+  MX: {name_ru: Мексика, name_en: Mexico, region: Северная Америка, radar: medium}
+  BR: {name_ru: Бразилия, name_en: Brazil, region: Южная Америка, radar: medium}
+  AR: {name_ru: Аргентина, name_en: Argentina, region: Южная Америка, radar: medium}
+  CL: {name_ru: Чили, name_en: Chile, region: Южная Америка, radar: medium}
+  CO: {name_ru: Колумбия, name_en: Colombia, region: Южная Америка, radar: medium}
+  PA: {name_ru: Панама, name_en: Panama, region: Центральная Америка, radar: elevated}
+  CR: {name_ru: Коста-Рика, name_en: Costa Rica, region: Центральная Америка, radar: medium}
+  ZA: {name_ru: ЮАР, name_en: South Africa, region: Африка, radar: medium}
+  EG: {name_ru: Египет, name_en: Egypt, region: Африка, radar: elevated}
+  MU: {name_ru: Маврикий, name_en: Mauritius, region: Африка, radar: medium}
+  SC: {name_ru: Сейшелы, name_en: Seychelles, region: Африка, radar: elevated}
+  SA: {name_ru: Саудовская Аравия, name_en: Saudi Arabia, region: Ближний Восток, radar: elevated}
+  QA: {name_ru: Катар, name_en: Qatar, region: Ближний Восток, radar: elevated}
+  KW: {name_ru: Кувейт, name_en: Kuwait, region: Ближний Восток, radar: elevated}
+  BH: {name_ru: Бахрейн, name_en: Bahrain, region: Ближний Восток, radar: elevated}
+  JO: {name_ru: Иордания, name_en: Jordan, region: Ближний Восток, radar: elevated}
 radar_risk:
   low: 0.10
   medium: 0.35
