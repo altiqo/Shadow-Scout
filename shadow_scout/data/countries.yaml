@@ -1,0 +1,65 @@
+# Страны: названия, регион и «уровень радара» для оценки юрисдикции.
+# radar: low — локальные рынки, редко попадают в массовые блокировки подсетей;
+#        medium — крупные хостинг-хабы (много заблокированных подсетей больших хостеров);
+#        elevated — повышенное внимание РКН / собственная цензура / тесные связи с РФ;
+#        hostile — юрисдикции, где хостер обязан сотрудничать с РКН или аналогами.
+countries:
+  SE: {name_ru: Швеция, name_en: Sweden, region: Северная Европа, radar: low}
+  FI: {name_ru: Финляндия, name_en: Finland, region: Северная Европа, radar: low}
+  "NO": {name_ru: Норвегия, name_en: Norway, region: Северная Европа, radar: low}
+  DK: {name_ru: Дания, name_en: Denmark, region: Северная Европа, radar: low}
+  IS: {name_ru: Исландия, name_en: Iceland, region: Северная Европа, radar: low}
+  EE: {name_ru: Эстония, name_en: Estonia, region: Балтия, radar: low}
+  LV: {name_ru: Латвия, name_en: Latvia, region: Балтия, radar: low}
+  LT: {name_ru: Литва, name_en: Lithuania, region: Балтия, radar: low}
+  HU: {name_ru: Венгрия, name_en: Hungary, region: Центральная Европа, radar: low}
+  CZ: {name_ru: Чехия, name_en: Czechia, region: Центральная Европа, radar: low}
+  SK: {name_ru: Словакия, name_en: Slovakia, region: Центральная Европа, radar: low}
+  AT: {name_ru: Австрия, name_en: Austria, region: Центральная Европа, radar: low}
+  CH: {name_ru: Швейцария, name_en: Switzerland, region: Центральная Европа, radar: low}
+  SI: {name_ru: Словения, name_en: Slovenia, region: Центральная Европа, radar: low}
+  HR: {name_ru: Хорватия, name_en: Croatia, region: Южная Европа, radar: low}
+  PT: {name_ru: Португалия, name_en: Portugal, region: Южная Европа, radar: low}
+  IE: {name_ru: Ирландия, name_en: Ireland, region: Западная Европа, radar: low}
+  BE: {name_ru: Бельгия, name_en: Belgium, region: Западная Европа, radar: low}
+  LU: {name_ru: Люксембург, name_en: Luxembourg, region: Западная Европа, radar: medium}
+  NL: {name_ru: Нидерланды, name_en: Netherlands, region: Западная Европа, radar: medium}
+  DE: {name_ru: Германия, name_en: Germany, region: Западная Европа, radar: medium}
+  FR: {name_ru: Франция, name_en: France, region: Западная Европа, radar: medium}
+  GB: {name_ru: Великобритания, name_en: United Kingdom, region: Западная Европа, radar: medium}
+  PL: {name_ru: Польша, name_en: Poland, region: Центральная Европа, radar: medium}
+  ES: {name_ru: Испания, name_en: Spain, region: Южная Европа, radar: medium}
+  IT: {name_ru: Италия, name_en: Italy, region: Южная Европа, radar: medium}
+  GR: {name_ru: Греция, name_en: Greece, region: Южная Европа, radar: medium}
+  CY: {name_ru: Кипр, name_en: Cyprus, region: Южная Европа, radar: medium}
+  BG: {name_ru: Болгария, name_en: Bulgaria, region: Юго-Восточная Европа, radar: medium}
+  RO: {name_ru: Румыния, name_en: Romania, region: Юго-Восточная Европа, radar: medium}
+  RS: {name_ru: Сербия, name_en: Serbia, region: Юго-Восточная Европа, radar: elevated}
+  MD: {name_ru: Молдова, name_en: Moldova, region: Юго-Восточная Европа, radar: elevated}
+  UA: {name_ru: Украина, name_en: Ukraine, region: Восточная Европа, radar: elevated}
+  TR: {name_ru: Турция, name_en: Türkiye, region: Ближний Восток, radar: elevated}
+  GE: {name_ru: Грузия, name_en: Georgia, region: Кавказ, radar: elevated}
+  AM: {name_ru: Армения, name_en: Armenia, region: Кавказ, radar: elevated}
+  IL: {name_ru: Израиль, name_en: Israel, region: Ближний Восток, radar: medium}
+  AE: {name_ru: ОАЭ, name_en: UAE, region: Ближний Восток, radar: elevated}
+  US: {name_ru: США, name_en: United States, region: Северная Америка, radar: medium}
+  CA: {name_ru: Канада, name_en: Canada, region: Северная Америка, radar: medium}
+  JP: {name_ru: Япония, name_en: Japan, region: Азия, radar: medium}
+  SG: {name_ru: Сингапур, name_en: Singapore, region: Азия, radar: medium}
+  KR: {name_ru: Южная Корея, name_en: South Korea, region: Азия, radar: medium}
+  HK: {name_ru: Гонконг, name_en: Hong Kong, region: Азия, radar: elevated}
+  AU: {name_ru: Австралия, name_en: Australia, region: Океания, radar: medium}
+  KZ: {name_ru: Казахстан, name_en: Kazakhstan, region: Центральная Азия, radar: hostile}
+  BY: {name_ru: Беларусь, name_en: Belarus, region: Восточная Европа, radar: hostile}
+  RU: {name_ru: Россия, name_en: Russia, region: Восточная Европа, radar: hostile}
+  KG: {name_ru: Киргизия, name_en: Kyrgyzstan, region: Центральная Азия, radar: hostile}
+  UZ: {name_ru: Узбекистан, name_en: Uzbekistan, region: Центральная Азия, radar: hostile}
+  IR: {name_ru: Иран, name_en: Iran, region: Ближний Восток, radar: hostile}
+  CN: {name_ru: Китай, name_en: China, region: Азия, radar: hostile}
+  BZ: {name_ru: Белиз, name_en: Belize, region: Центральная Америка, radar: elevated}
+radar_risk:
+  low: 0.10
+  medium: 0.35
+  elevated: 0.55
+  hostile: 0.95
+  unknown: 0.40
